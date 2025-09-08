@@ -22,7 +22,7 @@ def _compose_base_args() -> List[str]:
 @openmower_common_app.command()
 def pull():
     """Pull image(s) for the stack."""
-    typer.secho(f"Pulling compose stack images from {COMPOSE_FILE} ...", fg=typer.colors.YELLOW, bold=True)
+    info(f"Pulling compose stack images from {COMPOSE_FILE} ...")
     args = _compose_base_args() + ["pull"]
     run(args)
 

@@ -50,7 +50,7 @@ def _run_socat(port: int, device: str) -> int:
         try:
             subprocess.run(cmd)
         except FileNotFoundError as e:
-            typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
+            error(f"{e}")
             return 127
         except KeyboardInterrupt:
             # Our handler will flip running=False; continue to exit loop
@@ -155,11 +155,7 @@ def serial_bridge(
     device: Optional[str] = DEVICE_MAP.get(which)
     if device is None:
         valid = ", ".join(sorted(DEVICE_MAP))
-        typer.secho(
-            f"Error: Invalid argument. Valid values are: {valid}.",
-            fg=typer.colors.RED,
-            err=True,
-        )
+        error(f"Error: Invalid argument. Valid values are: {valid}.")
         raise typer.Exit(code=2)
 
     code = _run_socat(port=port, device=device)

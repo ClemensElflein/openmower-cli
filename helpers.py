@@ -1,7 +1,7 @@
 import os
 import subprocess
 from typing import List, Optional
-
+from console import error
 import typer
 
 TRUE_VALUES = {"1", "true", "t", "yes", "y", "on"}
@@ -27,7 +27,7 @@ def run(cmd: List[str]) -> None:
         if proc.returncode != 0:
             raise typer.Exit(code=proc.returncode)
     except FileNotFoundError as e:
-        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
+        error(f"{e}")
         raise typer.Exit(code=127)
 
 
