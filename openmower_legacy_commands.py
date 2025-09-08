@@ -72,10 +72,7 @@ def flash_pico(
     # Power GPIO 10 high
     if which("pinctrl"):
         info("Using pinctrl to set GPIO10 high (RPI power).")
-        rc = run(["pinctrl", "set", "10", "op", "dh"])
-        if rc != 0:
-            warn("pinctrl failed to set GPIO10")
-            raise typer.Exit(code=1)
+        run(["pinctrl", "set", "10", "op", "dh"])
     elif os.path.exists("/sys/class/gpio/gpio10") or os.path.exists("/sys/class/gpio"):  # type: ignore
         try:
             if not os.path.exists("/sys/class/gpio/gpio10"):
@@ -93,7 +90,7 @@ def flash_pico(
         error("could not find a method to set RPI power gpio")
         raise typer.Exit(code=1)
 
-    # 3) Run openocd programming
+    # Run openocd
     cmd = [
         "openocd",
         "-f",
@@ -104,12 +101,49 @@ def flash_pico(
         f"program {elf_path} verify reset exit",
     ]
     info("Starting openocd to flash firmware ...")
-    rc = run(cmd)
-    if rc == 0:
-        success("Firmware flashed successfully.")
+    run(cmd)
+    success("Firmware flashed successfully.")
+
+@openmower_legacy_app.command("openocd")
+def openocd_cmd():
+    """Starts openocd.
+    - Sets RPi power GPIO 10 high using `pinctrl` if present; otherwise via sysfs; otherwise exits.
+    - Starts openocd, so an IDE can connect to it.
+    """
+
+    # Power GPIO 10 high
+    if which("pinctrl"):
+        info("Using pinctrl to set GPIO10 high (RPI power).")
+        run(["pinctrl", "set", "10", "op", "dh"])
+    elif os.path.exists("/sys/class/gpio/gpio10") or os.path.exists("/sys/class/gpio"):  # type: ignore
+        try:
+            if not os.path.exists("/sys/class/gpio/gpio10"):
+                with open("/sys/class/gpio/export", "w") as f:
+                    f.write("10")
+            with open("/sys/class/gpio/gpio10/direction", "w") as f:
+                f.write("out")
+            with open("/sys/class/gpio/gpio10/value", "w") as f:
+                f.write("1")
+            info("GPIO10 set to high via sysfs.")
+        except Exception as e:
+            error(f"Failed to set GPIO10 via sysfs: {e}")
+            raise typer.Exit(code=1)
     else:
-        error(f"openocd failed with exit code {rc}")
-    raise typer.Exit(code=rc)
+        error("could not find a method to set RPI power gpio")
+        raise typer.Exit(code=1)
+
+    # Run openocd
+    cmd = [
+        "openocd",
+        "-f",
+        "interface/raspberrypi-swd.cfg",
+        "-f",
+        "target/rp2040.cfg",
+        "-c",
+        "bindto 0.0.0.0",
+    ]
+    info("Starting openocd...")
+    run(cmd)
 
 
 @openmower_legacy_app.command("expose-xesc")
