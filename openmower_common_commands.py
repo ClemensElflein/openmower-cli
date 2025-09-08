@@ -1,7 +1,7 @@
 import subprocess
 from typing import List
 from console import info
-
+from helpers import run
 import typer
 
 openmower_common_app = typer.Typer(help="OpenMower (Legacy) Commands", no_args_is_help=True)
@@ -18,45 +18,34 @@ def _compose_base_args() -> List[str]:
     return [DOCKER_BIN, "compose", "-f", COMPOSE_FILE]
 
 
-def _run(cmd: List[str]) -> None:
-    """Run a command, streaming output, and exit with its return code if it fails."""
-    try:
-        # Use check=False so we can propagate return code cleanly
-        proc = subprocess.run(cmd)
-        if proc.returncode != 0:
-            raise typer.Exit(code=proc.returncode)
-    except FileNotFoundError as e:
-        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=127)
-
 
 @openmower_common_app.command()
 def pull():
     """Pull image(s) for the stack."""
     typer.secho(f"Pulling compose stack images from {COMPOSE_FILE} ...", fg=typer.colors.YELLOW, bold=True)
     args = _compose_base_args() + ["pull"]
-    _run(args)
+    run(args)
 
 
 @openmower_common_app.command()
 def start():
     """Start the stack (docker compose up -d)."""
     args = _compose_base_args() + ["up", "-d"]
-    _run(args)
+    run(args)
 
 
 @openmower_common_app.command()
 def stop():
     """Stop the stack."""
     args = _compose_base_args() + ["stop"]
-    _run(args)
+    run(args)
 
 
 @openmower_common_app.command()
 def restart():
     """Restart the stack."""
     args = _compose_base_args() + ["restart"]
-    _run(args)
+    run(args)
 
 
 @openmower_common_app.command("status")
@@ -64,7 +53,7 @@ def status_cmd():
     """Show stack status (docker compose ps)."""
     args = _compose_base_args() + ["ps"]
     # status in bash did not exec; we'll mirror by running and returning
-    _run(args)
+    run(args)
 
 
 @openmower_common_app.command("logs")
@@ -76,7 +65,7 @@ def logs_cmd(
         args += ["-f", "--tail", "100"]
     else:
         args += services
-    _run(args)
+    run(args)
 
 
 @openmower_common_app.command("shell", context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
@@ -101,7 +90,7 @@ def shell_cmd(
     if cmd:
         info(f"Running `{' '.join(cmd)}` in {service}")
         args = _compose_base_args() + ["exec", service] + cmd
-        _run(args)
+        run(args)
         return
 
     info(f"Starting Shell in {service}")
@@ -110,4 +99,4 @@ def shell_cmd(
     args = _compose_base_args() + ["exec", "-it"] + env_args + [service, "bash", "-l"]
 
     # For interactive, we should set the subprocess to use the current stdin/stdout/stderr (default behavior)
-    _run(args)
+    run(args)
