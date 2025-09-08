@@ -6,7 +6,7 @@ from console import warn
 from helpers import env_bool
 
 def create_app():
-    app = typer.Typer(no_args_is_help=True, add_completion=True, help="OpenMower Command Line Interface")
+    app = typer.Typer(no_args_is_help=True, add_completion=False, help="OpenMower Command Line Interface")
     is_v2_hardware = env_bool("V2_HARDWARE")
     if is_v2_hardware is None:
         warn("V2_HARDWARE environment variable not set. Using legacy commands.")
