@@ -1,7 +1,7 @@
 import typer
 
-openmower_legacy_app = typer.Typer(help="OpenMower (Legacy) Commands")
+openmower_legacy_app = typer.Typer(help="OpenMower Commands (Legacy)")
 
 @openmower_legacy_app.command()
-def ping():
-    typer.echo("pong (openmower_legacy_app)")
+def update_firmware():
+    typer.echo("Not implemented yet")

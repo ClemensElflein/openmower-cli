@@ -1,6 +1,7 @@
 import typer
 import openmower_commands
 import openmower_legacy_commands
+import openmower_common_commands
 from console import warn
 from helpers import env_bool
 
@@ -15,6 +16,7 @@ def create_app():
         app.add_typer(openmower_commands.openmower_app)
     else:
         app.add_typer(openmower_legacy_commands.openmower_legacy_app)
+    app.add_typer(openmower_common_commands.openmower_common_app)
     return app
 
 
