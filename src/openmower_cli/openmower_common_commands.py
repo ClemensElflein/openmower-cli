@@ -1,10 +1,23 @@
 import subprocess
-from typing import List
-from openmower_cli.console import info
+import sys
+import os
+import platform
+import stat
+import tempfile
+import zipfile
+from pathlib import Path
+from typing import List, Optional
+
+import requests
+
+from openmower_cli.console import info, warn, error, success
 from openmower_cli.helpers import run
 import typer
 
 openmower_common_app = typer.Typer(help="OpenMower (Legacy) Commands", no_args_is_help=True)
+
+# Default GitHub repo for updates (can be overridden via --repo)
+DEFAULT_GH_REPO = os.environ.get("OPENMOWER_CLI_REPO", "ClemensElflein/openmower-cli")
 
 # Constants matching the legacy bash script
 COMPOSE_FILE = "/opt/stacks/openmower/compose.yaml"
@@ -100,3 +113,128 @@ def shell_cmd(
 
     # For interactive, we should set the subprocess to use the current stdin/stdout/stderr (default behavior)
     run(args)
+
+
+@openmower_common_app.command("self-update")
+def self_update(
+    version: Optional[str] = typer.Option(None, "--version", "-v", help="Update to a specific tag (e.g., v1.2.3). Defaults to the latest release."),
+    repo: str = typer.Option(DEFAULT_GH_REPO, "--repo", help="GitHub repo slug 'owner/name' to fetch releases from."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Only check and print what would be done; do not modify files."),
+):
+    """Self-update the openmower zipapp from GitHub Releases.
+
+    This command downloads the latest (or specified) release artifact and replaces the currently running
+    zipapp executable with the new version.
+    """
+
+    exe_path = Path(sys.argv[0]).resolve()
+    if not exe_path.exists():
+        error(f"Cannot resolve current executable path: {exe_path}")
+        raise typer.Exit(code=1)
+
+    # Basic heuristic: shiv-built artifact is a zipapp. This should be True for our distribution.
+    try:
+        is_zip = zipfile.is_zipfile(exe_path)
+    except Exception:
+        is_zip = False
+    if not is_zip:
+        error(f"Current executable does not look like a zipapp: {exe_path}. Exiting.")
+        raise typer.Exit(code=1)
+
+    session = requests.Session()
+    headers = {"Accept": "application/vnd.github+json"}
+    session.headers.update(headers)
+
+    # Fetch release metadata
+    if version:
+        info(f"Fetching release metadata for tag {version} from {repo} ...")
+        rel_url = f"https://api.github.com/repos/{repo}/releases/tags/{version}"
+    else:
+        info(f"Fetching latest release metadata from {repo} ...")
+        rel_url = f"https://api.github.com/repos/{repo}/releases/latest"
+
+    r = session.get(rel_url, timeout=30)
+    if r.status_code != 200:
+        error(f"Failed to fetch release metadata (HTTP {r.status_code}): {r.text[:200]}")
+        raise typer.Exit(code=1)
+    rel = r.json()
+    tag_name = rel.get("tag_name") or version or ""
+
+    # Find the asset matching CI naming: openmower-cli-<tag>.zip
+    expected_name = f"openmower-cli-{tag_name}.zip" if tag_name else None
+    asset = None
+    assets = rel.get("assets", [])
+    for a in assets:
+        name = a.get("name", "")
+        if expected_name and name == expected_name:
+            asset = a
+            break
+        # Fallback: pick first .zip if exact name not found
+        if not expected_name and name.endswith('.zip'):
+            asset = a
+            break
+    if not asset:
+        error("Could not find a suitable release asset (.zip) in GitHub release.")
+        raise typer.Exit(code=1)
+
+    asset_name = asset.get("name")
+    download_url = asset.get("browser_download_url")
+    info(f"Selected asset: {asset_name}")
+    if dry_run:
+        info(f"Dry-run: would download {download_url}")
+        return
+
+    # Download asset to temp file
+    with tempfile.TemporaryDirectory() as td:
+        zip_path = Path(td) / asset_name
+        info("Downloading asset ...")
+        with session.get(download_url, stream=True, timeout=300) as resp:
+            if resp.status_code != 200:
+                error(f"Failed to download asset (HTTP {resp.status_code})")
+                raise typer.Exit(code=1)
+            with open(zip_path, 'wb') as f:
+                for chunk in resp.iter_content(chunk_size=1024 * 256):
+                    if chunk:
+                        f.write(chunk)
+        info(f"Downloaded to {zip_path}")
+
+        # Extract and locate the shiv executable (likely named 'openmower')
+        info("Extracting artifact ...")
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall(td)
+
+        new_bin = Path(td) / "openmower"
+        if not new_bin.exists() or not new_bin.is_file():
+            error("Failed to locate 'openmower' executable inside the downloaded ZIP.")
+            raise typer.Exit(code=1)
+
+        # Ensure executable permissions
+        st = os.stat(new_bin)
+        os.chmod(new_bin, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+        # Replace current executable atomically
+        info(f"Updating {exe_path} ...")
+        # Write to a temp path in the same directory for atomic replace
+        target_dir = exe_path.parent
+        tmp_target = target_dir / (exe_path.name + ".tmp")
+        # Copy contents
+        with open(new_bin, 'rb') as src, open(tmp_target, 'wb') as dst:
+            while True:
+                chunk = src.read(1024 * 256)
+                if not chunk:
+                    break
+                dst.write(chunk)
+        # Preserve executable bits (already set on tmp file by copying; ensure here too)
+        st = os.stat(tmp_target)
+        os.chmod(tmp_target, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+        try:
+            os.replace(tmp_target, exe_path)
+        except PermissionError as e:
+            error(f"Permission denied updating {exe_path}: {e}")
+            raise typer.Exit(code=1)
+        except OSError as e:
+            error(f"Failed to replace executable: {e}")
+            raise typer.Exit(code=1)
+
+    success(f"Updated successfully to {tag_name or 'latest'}. Please re-run the command.")
