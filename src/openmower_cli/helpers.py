@@ -1,7 +1,7 @@
 import os
 import subprocess
 from typing import List, Optional
-from console import error
+from openmower_cli.console import error
 import typer
 
 TRUE_VALUES = {"1", "true", "t", "yes", "y", "on"}

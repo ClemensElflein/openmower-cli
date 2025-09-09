@@ -2,9 +2,9 @@ import signal
 import subprocess
 import os
 from typing import Optional
-from helpers import which, run
+from openmower_cli.helpers import which, run
 import typer
-from console import info, warn, error, success
+from openmower_cli.console import info, warn, error, success
 
 openmower_legacy_app = typer.Typer(help="OpenMower Commands (Legacy)", no_args_is_help=True)
 

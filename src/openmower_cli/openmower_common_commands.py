@@ -1,7 +1,7 @@
 import subprocess
 from typing import List
-from console import info
-from helpers import run
+from openmower_cli.console import info
+from openmower_cli.helpers import run
 import typer
 
 openmower_common_app = typer.Typer(help="OpenMower (Legacy) Commands", no_args_is_help=True)
