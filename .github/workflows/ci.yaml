@@ -40,7 +40,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: openmower-cli
-          path: artifacts/openmower
+          path: artifacts/
   tagged-release:
     runs-on: ubuntu-latest
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
@@ -52,7 +52,7 @@ jobs:
           name: openmower-cli
           path: artifacts
       - name: Compress release directory into a versioned ZIP file
-        run: zip -r "openmower-cli-${{ github.ref_name }}.zip" artifacts/*
+        run: cd artifacts && zip -r "../openmower-cli-${{ github.ref_name }}.zip" .
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
