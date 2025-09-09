@@ -6,6 +6,8 @@ ARG APP_CONSOLE_SCRIPT=openmower
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
+RUN apt-get update && apt-get install --yes git
+
 WORKDIR /src
 
 # Copy metadata first for better caching
