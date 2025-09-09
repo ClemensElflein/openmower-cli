@@ -35,6 +35,10 @@ jobs:
       - uses: pre-commit/action@v3.0.1
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+      - name: Compute version
+        id: version
+        run: |
+          echo "VERSION=$(git describe --tags || git describe --always || echo "v0.0.0")" >> $GITHUB_OUTPUT
       - name: Build
         uses: docker/build-push-action@v6
         with:
@@ -42,6 +46,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           outputs: type=local,dest=./artifacts
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.VERSION }}
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:

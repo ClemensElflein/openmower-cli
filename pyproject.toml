@@ -8,10 +8,6 @@ dynamic = ["version"]
 requires-python = ">=3.10"
 
 [tool.setuptools_scm]
-# strip the leading 'v' from tags like v1.2.3
-# Accept tags like v1.2.3 or 1.2.3 optionally with pre/post segments
-# Default schemes will produce exact tag version on tags and dev versions on branches
-tag_regex = "^(?P<prefix>v)?(?P<version>\\d+\\.\\d+\\.\\d+(?:[a-zA-Z0-9\\.\\-]+)?)$"
 
 [project.scripts]
 openmower = "openmower_cli.__main__:main"
