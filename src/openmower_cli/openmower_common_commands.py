@@ -214,27 +214,22 @@ def self_update(
 
         # Replace current executable atomically
         info(f"Updating {exe_path} ...")
-        # Write to a temp path in the same directory for atomic replace
-        target_dir = exe_path.parent
-        tmp_target = target_dir / (exe_path.name + ".tmp")
-        # Copy contents
-        with open(new_bin, 'rb') as src, open(tmp_target, 'wb') as dst:
-            while True:
-                chunk = src.read(1024 * 256)
-                if not chunk:
-                    break
-                dst.write(chunk)
-        # Preserve executable bits (already set on tmp file by copying; ensure here too)
-        st = os.stat(tmp_target)
-        os.chmod(tmp_target, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-
         try:
+            # Write to a temp path in the same directory for atomic replace
+            target_dir = exe_path.parent
+            tmp_target = target_dir / (exe_path.name + ".tmp")
+            # Copy contents
+            with open(new_bin, 'rb') as src, open(tmp_target, 'wb') as dst:
+                while True:
+                    chunk = src.read(1024 * 256)
+                    if not chunk:
+                        break
+                    dst.write(chunk)
+            # Preserve executable bits (already set on tmp file by copying; ensure here too)
+            st = os.stat(tmp_target)
+            os.chmod(tmp_target, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
             os.replace(tmp_target, exe_path)
         except PermissionError as e:
-            error(f"Permission denied updating {exe_path}: {e}")
-            raise typer.Exit(code=1)
-        except OSError as e:
-            error(f"Failed to replace executable: {e}")
-            raise typer.Exit(code=1)
-
+                error(f"Failed to update executable at: {e}. Retrying with sudo!")
+                raise typer.Exit(code=1)
     success(f"Updated successfully to {tag_name or 'latest'}. Please re-run the command.")
