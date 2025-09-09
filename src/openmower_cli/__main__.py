@@ -1,3 +1,4 @@
+import os
 import typer
 import openmower_cli.openmower_commands
 import openmower_cli.openmower_legacy_commands
@@ -5,8 +6,17 @@ import openmower_cli.openmower_common_commands
 from openmower_cli.console import warn
 from openmower_cli.helpers import env_bool
 from openmower_cli import __version__
+from dotenv import load_dotenv  # required dependency
+
+_ENV_PATH = "/opt/stacks/openmower/.env"
 
 def create_app():
+    if os.path.exists(_ENV_PATH):
+        # Do not override already-set environment variables
+        load_dotenv(dotenv_path=_ENV_PATH, override=False)
+    else:
+        warn(f"Environment file {_ENV_PATH} not found. Using system environment variables.")
+
     app = typer.Typer(
         no_args_is_help=True,
         add_completion=True,
