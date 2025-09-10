@@ -176,45 +176,53 @@ def update_firmware():
     import urllib.request
     import urllib.error
 
+    import shutil
     tmp_dir = tempfile.mkdtemp(prefix="openmower-fw-")
     local_zip = os.path.join(tmp_dir, "firmware.zip")
     local_fw = os.path.join(tmp_dir, "firmware.elf")
 
-    hw = os.getenv("OM_HARDWARE_VERSION", "").strip()
-    if not hw:
-        error("OM_HARDWARE_VERSION is not specified\nPlease configure it at /boot/openmower/mower_config.txt before running this command again!")
-        raise typer.Exit(code=1)
-
-    info(f"Downloading latest firmware.zip from \"{FW_URL_BASE}\"...")
     try:
-        with urllib.request.urlopen(f"{FW_URL}.zip") as resp, open(local_zip, "wb") as out:
-            # Stream download in chunks
-            while True:
-                chunk = resp.read(1024 * 64)
-                if not chunk:
-                    break
-                out.write(chunk)
-    except urllib.error.URLError as e:
-        error(f"Failed to download firmware.zip: {e}")
-        raise typer.Exit(code=1)
-    success("Firmware downloaded successfully.")
+        hw = os.getenv("OM_HARDWARE_VERSION", "").strip()
+        if not hw:
+            error("OM_HARDWARE_VERSION is not specified\nPlease configure it at /boot/openmower/mower_config.txt before running this command again!")
+            raise typer.Exit(code=1)
 
-    # Extract the correct firmware.elf from the zip
-    info(f"Extrating firmware for \"{hw}\"")
-    import zipfile
+        info(f"Downloading latest firmware.zip from \"{FW_URL_BASE}\"...")
+        try:
+            with urllib.request.urlopen(f"{FW_URL}.zip") as resp, open(local_zip, "wb") as out:
+                # Stream download in chunks
+                while True:
+                    chunk = resp.read(1024 * 64)
+                    if not chunk:
+                        break
+                    out.write(chunk)
+        except urllib.error.URLError as e:
+            error(f"Failed to download firmware.zip: {e}")
+            raise typer.Exit(code=1)
+        success("Firmware downloaded successfully.")
 
-    member_path = f"firmware/{hw}/firmware.elf"
-    try:
-        with zipfile.ZipFile(local_zip, "r") as zf:
-            with zf.open(member_path) as src, open(local_fw, "wb") as dst:
-                dst.write(src.read())
-    except KeyError:
-        error(f"Firmware for hardware version '{hw}' not found in archive.")
-        raise typer.Exit(code=2)
-    success("Firmware extracted successfully.")
+        # Extract the correct firmware.elf from the zip
+        info(f"Extracting firmware for \"{hw}\"")
+        import zipfile
 
-    info(f"Executing flash script with firmware \"{local_fw}\":")
+        member_path = f"firmware/{hw}/firmware.elf"
+        try:
+            with zipfile.ZipFile(local_zip, "r") as zf:
+                with zf.open(member_path) as src, open(local_fw, "wb") as dst:
+                    dst.write(src.read())
+        except KeyError:
+            error(f"Firmware for hardware version '{hw}' not found in archive.")
+            raise typer.Exit(code=2)
+        success("Firmware extracted successfully.")
 
-    flash_pico(local_fw)
+        info(f"Executing flash script with firmware \"{local_fw}\":")
 
-    success("Firmware updated successfully.")
+        flash_pico(local_fw)
+
+        success("Firmware updated successfully.")
+    finally:
+        # Always remove the temporary directory and its contents
+        try:
+            shutil.rmtree(tmp_dir)
+        except Exception:
+            pass

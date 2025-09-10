@@ -28,45 +28,52 @@ def update_firmware():
 
     info("Fetching latest firmware release from GitHub ...")
     try:
-        zip_path, tag = fetch_github_release_zip(repo, expected_asset_suffix=None, tag=None)
+        zip_path, tag, tmp_handle = fetch_github_release_zip(repo, expected_asset_suffix=None, tag=None)
     except Exception as e:
         error(f"Failed to fetch firmware release: {e}")
         raise typer.Exit(code=1)
 
     tmpdir = zip_path.parent
-    info(f"Downloaded firmware archive: {zip_path}")
-    info("Extracting firmware archive ...")
     try:
-        with zipfile.ZipFile(zip_path) as zf:
-            zf.extractall(tmpdir)
-    except Exception as e:
-        error(f"Failed to extract firmware archive: {e}")
-        raise typer.Exit(code=1)
+        info(f"Downloaded firmware archive: {zip_path}")
+        info("Extracting firmware archive ...")
+        try:
+            with zipfile.ZipFile(zip_path) as zf:
+                zf.extractall(tmpdir)
+        except Exception as e:
+            error(f"Failed to extract firmware archive: {e}")
+            raise typer.Exit(code=1)
 
-    fw_path = tmpdir / mower / "firmware.bin"
-    if not fw_path.exists() or not fw_path.is_file():
-        error(f"Firmware file not found at expected path: {fw_path}. Please ensure the release contains {mower}/firmware.bin. Your MOWER environment variable may be set incorrectly.")
-        raise typer.Exit(code=1)
+        fw_path = tmpdir / mower / "firmware.bin"
+        if not fw_path.exists() or not fw_path.is_file():
+            error(f"Firmware file not found at expected path: {fw_path}. Please ensure the release contains {mower}/firmware.bin. Your MOWER environment variable may be set incorrectly.")
+            raise typer.Exit(code=1)
 
-    # Run docker uploader
-    info("Uploading firmware to mower via docker ...")
-    # Ensure path is absolute
-    fw_dir = str(fw_path.parent.resolve())
-    cmd = [
-        "/usr/bin/docker",
-        "run",
-        "--rm",
-        "-it",
-        "--network=host",
-        f"-v{fw_dir}:/workdir",
-        "ghcr.io/xtech/fw-xcore-boot:main",
-        "upload",
-        "/workdir/firmware.bin",
-    ]
-    try:
-        run(cmd)
-    except typer.Exit as e:
-        # run already emitted messages; re-raise
-        raise
+        # Run docker uploader
+        info("Uploading firmware to mower via docker ...")
+        # Ensure path is absolute
+        fw_dir = str(fw_path.parent.resolve())
+        cmd = [
+            "/usr/bin/docker",
+            "run",
+            "--rm",
+            "-it",
+            "--network=host",
+            f"-v{fw_dir}:/workdir",
+            "ghcr.io/xtech/fw-xcore-boot:main",
+            "upload",
+            "/workdir/firmware.bin",
+        ]
+        try:
+            run(cmd)
+        except typer.Exit:
+            # run already emitted messages; re-raise
+            raise
 
-    success(f"Firmware upload finished (release {tag or 'latest'}).")
+        success(f"Firmware upload finished (release {tag or 'latest'}).")
+    finally:
+        # Ensure temporary download directory is removed
+        try:
+            tmp_handle.cleanup()
+        except Exception:
+            pass

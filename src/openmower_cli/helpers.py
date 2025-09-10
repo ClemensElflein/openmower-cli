@@ -145,11 +145,13 @@ def fetch_github_release(repo: str, tag: str | None = None) -> dict:
     return r.json()
 
 
-def fetch_github_release_zip(repo: str, expected_asset_suffix: str | None = None, tag: str | None = None) -> tuple[Path, str]:
-    """Download a release asset (.zip) from GitHub to a temporary directory and return (zip_path, tag).
+def fetch_github_release_zip(repo: str, expected_asset_suffix: str | None = None, tag: str | None = None) -> tuple[Path, str, tempfile.TemporaryDirectory]:
+    """Download a release asset (.zip) from GitHub to a temporary directory and return (zip_path, tag, tmpdir_handle).
     - repo: 'owner/name'
     - expected_asset_suffix: e.g., '.zip' or a specific name to match; if None, picks first .zip
     - tag: tag name to fetch; if None, fetches latest
+    - The returned TemporaryDirectory handle must be kept alive until you're done with files in it,
+      and should be explicitly cleaned up; callers should use try/finally to call tmpdir_handle.cleanup().
     """
     rel = fetch_github_release(repo, tag)
     tag_name = rel.get("tag_name") or tag or ""
@@ -181,11 +183,12 @@ def fetch_github_release_zip(repo: str, expected_asset_suffix: str | None = None
     session.headers.update({"Accept": "application/octet-stream"})
     with session.get(download_url, stream=True, timeout=300) as resp:
         if resp.status_code != 200:
+            # ensure temp dir gets removed even if download fails
+            td.cleanup()
             raise RuntimeError(f"Failed to download asset (HTTP {resp.status_code})")
         with open(zip_path, 'wb') as f:
             for chunk in resp.iter_content(chunk_size=1024 * 256):
                 if chunk:
                     f.write(chunk)
-    # attach the TemporaryDirectory to the Path object by setting an attribute for lifecycle management
-    zip_path._tempdir = td  # type: ignore[attr-defined]
-    return zip_path, tag_name
+    # Do not cleanup here; caller will cleanup after using the files
+    return zip_path, tag_name, td

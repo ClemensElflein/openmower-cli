@@ -146,49 +146,56 @@ def self_update(
     info("Fetching release artifact from GitHub ...")
     try:
         # We expect asset name to end with .zip; our helper will pick first zip if multiple
-        zip_path, tag_name = fetch_github_release_zip(repo, expected_asset_suffix=None, tag=version)
+        zip_path, tag_name, tmp_handle = fetch_github_release_zip(repo, expected_asset_suffix=None, tag=version)
     except Exception as e:
         error(str(e))
         raise typer.Exit(code=1)
     info(f"Downloaded release zip: {zip_path}")
 
-    if dry_run:
-        info("Dry-run: would extract and replace current executable")
-        return
-
-    # Extract and locate the shiv executable (likely named 'openmower')
-    td = zip_path.parent
-    info("Extracting artifact ...")
-    with zipfile.ZipFile(zip_path) as zf:
-        zf.extractall(td)
-
-    new_bin = td / "openmower"
-    if not new_bin.exists() or not new_bin.is_file():
-        error("Failed to locate 'openmower' executable inside the downloaded ZIP.")
-        raise typer.Exit(code=1)
-
-    # Ensure executable permissions
-    st = os.stat(new_bin)
-    os.chmod(new_bin, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-
-    # Replace current executable atomically
-    info(f"Updating {exe_path} ...")
     try:
-        # Write to a temp path in the same directory for atomic replace
-        target_dir = exe_path.parent
-        tmp_target = target_dir / (exe_path.name + ".tmp")
-        # Copy contents
-        with open(new_bin, 'rb') as src, open(tmp_target, 'wb') as dst:
-            while True:
-                chunk = src.read(1024 * 256)
-                if not chunk:
-                    break
-                dst.write(chunk)
-        # Preserve executable bits
-        st = os.stat(tmp_target)
-        os.chmod(tmp_target, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-        os.replace(tmp_target, exe_path)
-    except PermissionError as e:
-        error(f"Failed to update executable at: {e}.")
-        raise typer.Exit(code=1)
-    success(f"Updated successfully to {tag_name or 'latest'}. Please re-run the command.")
+        if dry_run:
+            info("Dry-run: would extract and replace current executable")
+            return
+
+        # Extract and locate the shiv executable (likely named 'openmower')
+        td = zip_path.parent
+        info("Extracting artifact ...")
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall(td)
+
+        new_bin = td / "openmower"
+        if not new_bin.exists() or not new_bin.is_file():
+            error("Failed to locate 'openmower' executable inside the downloaded ZIP.")
+            raise typer.Exit(code=1)
+
+        # Ensure executable permissions
+        st = os.stat(new_bin)
+        os.chmod(new_bin, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+        # Replace current executable atomically
+        info(f"Updating {exe_path} ...")
+        try:
+            # Write to a temp path in the same directory for atomic replace
+            target_dir = exe_path.parent
+            tmp_target = target_dir / (exe_path.name + ".tmp")
+            # Copy contents
+            with open(new_bin, 'rb') as src, open(tmp_target, 'wb') as dst:
+                while True:
+                    chunk = src.read(1024 * 256)
+                    if not chunk:
+                        break
+                    dst.write(chunk)
+            # Preserve executable bits
+            st = os.stat(tmp_target)
+            os.chmod(tmp_target, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+            os.replace(tmp_target, exe_path)
+        except PermissionError as e:
+            error(f"Failed to update executable at: {e}.")
+            raise typer.Exit(code=1)
+        success(f"Updated successfully to {tag_name or 'latest'}. Please re-run the command.")
+    finally:
+        # Always cleanup temporary download directory
+        try:
+            tmp_handle.cleanup()
+        except Exception:
+            pass
