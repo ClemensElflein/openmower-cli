@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import requests
+import hashlib
 
 from openmower_cli.console import info, warn, error, success
 from openmower_cli.helpers import run
@@ -16,14 +17,7 @@ import typer
 
 openmower_common_app = typer.Typer(help="OpenMower (Legacy) Commands", no_args_is_help=True)
 
-# Default GitHub repo for updates (can be overridden via --repo)
-DEFAULT_GH_REPO = os.environ.get("OPENMOWER_CLI_REPO", "ClemensElflein/openmower-cli")
-
-# Constants matching the legacy bash script
-COMPOSE_FILE = "/opt/stacks/openmower/compose.yaml"
-DOCKER_BIN = "/usr/bin/docker"
-DEFAULT_SERVICE = "openmower"
-STACK_NAME = "openmower"
+from openmower_cli.constants import DEFAULT_GH_REPO, COMPOSE_FILE, DOCKER_BIN, DEFAULT_SERVICE, STACK_NAME, ENV_PATH
 
 
 def _compose_base_args() -> List[str]:
@@ -113,6 +107,53 @@ def shell_cmd(
 
     # For interactive, we should set the subprocess to use the current stdin/stdout/stderr (default behavior)
     run(args)
+
+
+@openmower_common_app.command("configure")
+def configure():
+    """Open the stack .env in nano and restart the docker stack if changes were made."""
+    env_path = Path(ENV_PATH)
+
+    # Ensure parent dir exists; create empty file if missing
+    try:
+        env_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+
+    before_hash = None
+    if env_path.exists():
+        try:
+            before_hash = hashlib.sha256(env_path.read_bytes()).hexdigest()
+        except Exception:
+            before_hash = None
+    else:
+        # Create empty file so nano can open it
+        try:
+            env_path.touch()
+        except Exception:
+            # If touch fails, still try to open nano; it may allow writing
+            pass
+
+    info(f"Opening {env_path} in nano ...")
+    try:
+        run(["nano", str(env_path)])
+    except typer.Exit as e:
+        # If user exited nano with non-zero (rare) just propagate
+        raise
+
+    after_hash = None
+    if env_path.exists():
+        try:
+            after_hash = hashlib.sha256(env_path.read_bytes()).hexdigest()
+        except Exception:
+            after_hash = None
+
+    if before_hash != after_hash:
+        info("Detected changes in .env. Applying and restarting stack (docker compose up -d) ...")
+        restart()
+        success("Stack restarted with updated environment.")
+    else:
+        info("No changes detected in .env. Stack not restarted.")
 
 
 @openmower_common_app.command("self-update")

@@ -24,7 +24,8 @@ def update_firmware():
         error("Environment variable MOWER is not set. Please set MOWER to your mower identifier and retry.")
         raise typer.Exit(code=2)
 
-    repo = "xtech/fw-openmower-v2"
+    from openmower_cli.constants import FW_REPO
+    repo = FW_REPO
 
     info("Fetching latest firmware release from GitHub ...")
     try:
@@ -52,11 +53,12 @@ def update_firmware():
         # Run docker uploader
         info("Uploading firmware to mower via docker ...")
         # Fetch the latest docker image
-        run(["docker", "pull", "ghcr.io/xtech/fw-xcore-boot:latest"])
+        from openmower_cli.constants import DOCKER_BIN
+        run([DOCKER_BIN, "pull", "ghcr.io/xtech/fw-xcore-boot:latest"])
         # Ensure path is absolute
         fw_dir = str(fw_path.parent.resolve())
         cmd = [
-            "/usr/bin/docker",
+            DOCKER_BIN,
             "run",
             "--rm",
             "-it",

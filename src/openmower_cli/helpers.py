@@ -10,12 +10,10 @@ import typer
 import tempfile
 import zipfile
 from pathlib import Path
+from openmower_cli.constants import LAST_CHECK_FILE, DEFAULT_GH_REPO
 
 TRUE_VALUES = {"1", "true", "t", "yes", "y", "on"}
 FALSE_VALUES = {"0", "false", "f", "no", "n", "off"}
-
-LAST_CHECK_FILE = Path(os.path.expanduser("~/.config/openmower-cli/last_update_check.json"))
-DEFAULT_GH_REPO = os.environ.get("OPENMOWER_CLI_REPO", "ClemensElflein/openmower-cli")
 
 
 def env_bool(name: str) -> bool | None:
