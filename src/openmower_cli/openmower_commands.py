@@ -63,14 +63,13 @@ def update_firmware():
             "--network=host",
             f"-v{fw_dir}:/workdir",
             "ghcr.io/xtech/fw-xcore-boot:latest",
-            "-i", "eth0"
-            "upload",
-            "/workdir/firmware.bin",
+            "-i", "eth0", "upload", f"/workdir/openmower-{mower}2.bin",
         ]
         try:
             run(cmd)
         except typer.Exit:
             # run already emitted messages; re-raise
+            error("Error uploading firmware.")
             raise
 
         success(f"Firmware upload finished (release {tag or 'latest'}).")
