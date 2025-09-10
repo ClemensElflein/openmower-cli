@@ -36,6 +36,14 @@ def create_app():
     ):
         pass
 
+    # Perform a lightweight update check at startup (at most once every 7 days)
+    try:
+        from openmower_cli.helpers import check_for_update_if_needed
+        check_for_update_if_needed(__version__)
+    except Exception:
+        # Never block startup for update checks
+        pass
+
     is_v2_hardware = env_bool("V2_HARDWARE")
     if is_v2_hardware is None:
         warn("V2_HARDWARE environment variable not set. Using legacy commands.")
