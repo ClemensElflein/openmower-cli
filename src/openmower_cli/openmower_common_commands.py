@@ -141,69 +141,29 @@ def self_update(
         error(f"Current executable does not look like a zipapp: {exe_path}. Exiting.")
         raise typer.Exit(code=1)
 
-    session = requests.Session()
-    headers = {"Accept": "application/vnd.github+json"}
-    session.headers.update(headers)
+    from openmower_cli.helpers import fetch_github_release_zip
 
-    # Fetch release metadata
-    if version:
-        info(f"Fetching release metadata for tag {version} from {repo} ...")
-        rel_url = f"https://api.github.com/repos/{repo}/releases/tags/{version}"
-    else:
-        info(f"Fetching latest release metadata from {repo} ...")
-        rel_url = f"https://api.github.com/repos/{repo}/releases/latest"
-
-    r = session.get(rel_url, timeout=30)
-    if r.status_code != 200:
-        error(f"Failed to fetch release metadata (HTTP {r.status_code}): {r.text[:200]}")
+    info("Fetching release artifact from GitHub ...")
+    try:
+        # We expect asset name to end with .zip; our helper will pick first zip if multiple
+        zip_path, tag_name, tmp_handle = fetch_github_release_zip(repo, expected_asset_suffix=None, tag=version)
+    except Exception as e:
+        error(str(e))
         raise typer.Exit(code=1)
-    rel = r.json()
-    tag_name = rel.get("tag_name") or version or ""
+    info(f"Downloaded release zip: {zip_path}")
 
-    # Find the asset matching CI naming: openmower-cli-<tag>.zip
-    expected_name = f"openmower-cli-{tag_name}.zip" if tag_name else None
-    asset = None
-    assets = rel.get("assets", [])
-    for a in assets:
-        name = a.get("name", "")
-        if expected_name and name == expected_name:
-            asset = a
-            break
-        # Fallback: pick first .zip if exact name not found
-        if not expected_name and name.endswith('.zip'):
-            asset = a
-            break
-    if not asset:
-        error("Could not find a suitable release asset (.zip) in GitHub release.")
-        raise typer.Exit(code=1)
-
-    asset_name = asset.get("name")
-    download_url = asset.get("browser_download_url")
-    info(f"Selected asset: {asset_name}")
-    if dry_run:
-        info(f"Dry-run: would download {download_url}")
-        return
-
-    # Download asset to temp file
-    with tempfile.TemporaryDirectory() as td:
-        zip_path = Path(td) / asset_name
-        info("Downloading asset ...")
-        with session.get(download_url, stream=True, timeout=300) as resp:
-            if resp.status_code != 200:
-                error(f"Failed to download asset (HTTP {resp.status_code})")
-                raise typer.Exit(code=1)
-            with open(zip_path, 'wb') as f:
-                for chunk in resp.iter_content(chunk_size=1024 * 256):
-                    if chunk:
-                        f.write(chunk)
-        info(f"Downloaded to {zip_path}")
+    try:
+        if dry_run:
+            info("Dry-run: would extract and replace current executable")
+            return
 
         # Extract and locate the shiv executable (likely named 'openmower')
+        td = zip_path.parent
         info("Extracting artifact ...")
         with zipfile.ZipFile(zip_path) as zf:
             zf.extractall(td)
 
-        new_bin = Path(td) / "openmower"
+        new_bin = td / "openmower"
         if not new_bin.exists() or not new_bin.is_file():
             error("Failed to locate 'openmower' executable inside the downloaded ZIP.")
             raise typer.Exit(code=1)
@@ -225,11 +185,17 @@ def self_update(
                     if not chunk:
                         break
                     dst.write(chunk)
-            # Preserve executable bits (already set on tmp file by copying; ensure here too)
+            # Preserve executable bits
             st = os.stat(tmp_target)
             os.chmod(tmp_target, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
             os.replace(tmp_target, exe_path)
         except PermissionError as e:
-                error(f"Failed to update executable at: {e}. Retrying with sudo!")
-                raise typer.Exit(code=1)
-    success(f"Updated successfully to {tag_name or 'latest'}. Please re-run the command.")
+            error(f"Failed to update executable at: {e}.")
+            raise typer.Exit(code=1)
+        success(f"Updated successfully to {tag_name or 'latest'}. Please re-run the command.")
+    finally:
+        # Always cleanup temporary download directory
+        try:
+            tmp_handle.cleanup()
+        except Exception:
+            pass

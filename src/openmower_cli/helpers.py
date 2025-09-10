@@ -7,6 +7,9 @@ import json
 import requests
 from openmower_cli.console import error, warn, info
 import typer
+import tempfile
+import zipfile
+from pathlib import Path
 
 TRUE_VALUES = {"1", "true", "t", "yes", "y", "on"}
 FALSE_VALUES = {"0", "false", "f", "no", "n", "off"}
@@ -126,3 +129,66 @@ def check_for_update_if_needed(current_version: str, repo: str = DEFAULT_GH_REPO
         # On any error, still write timestamp to avoid repeated attempts on every run
         _write_last_check_ts()
         return
+
+
+def fetch_github_release(repo: str, tag: str | None = None) -> dict:
+    """Fetch GitHub release JSON for latest or a specific tag."""
+    session = requests.Session()
+    session.headers.update({"Accept": "application/vnd.github+json"})
+    if tag:
+        rel_url = f"https://api.github.com/repos/{repo}/releases/tags/{tag}"
+    else:
+        rel_url = f"https://api.github.com/repos/{repo}/releases/latest"
+    r = session.get(rel_url, timeout=30)
+    if r.status_code != 200:
+        raise RuntimeError(f"Failed to fetch release metadata from GitHub (HTTP {r.status_code})")
+    return r.json()
+
+
+def fetch_github_release_zip(repo: str, expected_asset_suffix: str | None = None, tag: str | None = None) -> tuple[Path, str, tempfile.TemporaryDirectory]:
+    """Download a release asset (.zip) from GitHub to a temporary directory and return (zip_path, tag, tmpdir_handle).
+    - repo: 'owner/name'
+    - expected_asset_suffix: e.g., '.zip' or a specific name to match; if None, picks first .zip
+    - tag: tag name to fetch; if None, fetches latest
+    - The returned TemporaryDirectory handle must be kept alive until you're done with files in it,
+      and should be explicitly cleaned up; callers should use try/finally to call tmpdir_handle.cleanup().
+    """
+    rel = fetch_github_release(repo, tag)
+    tag_name = rel.get("tag_name") or tag or ""
+
+    # pick asset
+    asset = None
+    assets = rel.get("assets", [])
+    for a in assets:
+        name = a.get("name", "")
+        if expected_asset_suffix:
+            if name == expected_asset_suffix or name.endswith(expected_asset_suffix):
+                asset = a
+                break
+        else:
+            if name.endswith('.zip'):
+                asset = a
+                break
+    if not asset:
+        raise RuntimeError("No matching .zip asset found in the release.")
+
+    asset_name = asset.get("name")
+    download_url = asset.get("browser_download_url")
+
+    td = tempfile.TemporaryDirectory()
+    tmpdir = Path(td.name)
+    zip_path = tmpdir / asset_name
+
+    session = requests.Session()
+    session.headers.update({"Accept": "application/octet-stream"})
+    with session.get(download_url, stream=True, timeout=300) as resp:
+        if resp.status_code != 200:
+            # ensure temp dir gets removed even if download fails
+            td.cleanup()
+            raise RuntimeError(f"Failed to download asset (HTTP {resp.status_code})")
+        with open(zip_path, 'wb') as f:
+            for chunk in resp.iter_content(chunk_size=1024 * 256):
+                if chunk:
+                    f.write(chunk)
+    # Do not cleanup here; caller will cleanup after using the files
+    return zip_path, tag_name, td
