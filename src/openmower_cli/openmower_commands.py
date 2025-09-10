@@ -63,6 +63,7 @@ def update_firmware():
             "--network=host",
             f"-v{fw_dir}:/workdir",
             "ghcr.io/xtech/fw-xcore-boot:latest",
+            "-i", "eth0"
             "upload",
             "/workdir/firmware.bin",
         ]
