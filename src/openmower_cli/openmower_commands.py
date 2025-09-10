@@ -51,6 +51,8 @@ def update_firmware():
 
         # Run docker uploader
         info("Uploading firmware to mower via docker ...")
+        # Fetch the latest docker image
+        run(["docker", "pull", "ghcr.io/xtech/fw-xcore-boot:latest"])
         # Ensure path is absolute
         fw_dir = str(fw_path.parent.resolve())
         cmd = [
@@ -60,7 +62,7 @@ def update_firmware():
             "-it",
             "--network=host",
             f"-v{fw_dir}:/workdir",
-            "ghcr.io/xtech/fw-xcore-boot:main",
+            "ghcr.io/xtech/fw-xcore-boot:latest",
             "upload",
             "/workdir/firmware.bin",
         ]
