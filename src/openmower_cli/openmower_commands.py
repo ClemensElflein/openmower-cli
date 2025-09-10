@@ -44,9 +44,9 @@ def update_firmware():
             error(f"Failed to extract firmware archive: {e}")
             raise typer.Exit(code=1)
 
-        fw_path = tmpdir / mower / "firmware.bin"
+        fw_path = tmpdir / f"openmower-{mower}.bin"
         if not fw_path.exists() or not fw_path.is_file():
-            error(f"Firmware file not found at expected path: {fw_path}. Please ensure the release contains {mower}/firmware.bin. Your MOWER environment variable may be set incorrectly.")
+            error(f"Firmware file not found at expected path: {fw_path}. Please ensure the release contains openmower-{mower}.bin. Your MOWER environment variable may be set incorrectly.")
             raise typer.Exit(code=1)
 
         # Run docker uploader
