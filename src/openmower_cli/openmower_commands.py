@@ -4,6 +4,7 @@ import zipfile
 import typer
 
 from openmower_cli.console import info, error, success
+from openmower_cli.constants import FW_BIN_NAME
 from openmower_cli.helpers import fetch_github_release_zip, run
 
 openmower_app = typer.Typer(help="OpenMower Commands")
@@ -46,6 +47,10 @@ def update_firmware():
             raise typer.Exit(code=1)
 
         fw_path = tmpdir / f"openmower-{mower}.bin"
+        if FW_BIN_NAME is not None:
+            info(f"Using custom firmware binary file name: {FW_BIN_NAME}.")
+            fw_path = tmpdir / FW_BIN_NAME
+
         if not fw_path.exists() or not fw_path.is_file():
             error(f"Firmware file not found at expected path: {fw_path}. Please ensure the release contains openmower-{mower}.bin. Your MOWER environment variable may be set incorrectly.")
             raise typer.Exit(code=1)
