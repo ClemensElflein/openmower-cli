@@ -1,7 +1,8 @@
 import signal
-import subprocess
 import os
 from typing import Optional
+
+from openmower_cli.constants import ENV_PATH
 from openmower_cli.helpers import which, run
 import typer
 from openmower_cli.console import info, warn, error, success
@@ -39,23 +40,13 @@ def _run_socat(port: int, device: str) -> int:
 
     info(f"Running socat for device: {device} on port: {port} ...")
 
-    # Loop to restart socat similar to `while $running; do ... || true; done`
-    while running:
-        cmd = [
-            "sudo",
-            "socat",
-            f"TCP-LISTEN:{port},reuseaddr,fork",
-            f"FILE:{device},b115200,cs8,raw,echo=0",
-        ]
-        try:
-            subprocess.run(cmd)
-        except FileNotFoundError as e:
-            error(f"{e}")
-            return 127
-        except KeyboardInterrupt:
-            # Our handler will flip running=False; continue to exit loop
-            running = False
-
+    cmd = [
+        "sudo",
+        "socat",
+        f"TCP-LISTEN:{port},reuseaddr,fork",
+        f"FILE:{device},b115200,cs8,raw,echo=0",
+    ]
+    run(cmd)
     return 0
 
 
