@@ -184,7 +184,7 @@ def update_firmware():
     try:
         hw = os.getenv("OM_HARDWARE_VERSION", "").strip()
         if not hw:
-            error("OM_HARDWARE_VERSION is not specified\nPlease configure it at /boot/openmower/mower_config.txt before running this command again!")
+            error(f"OM_HARDWARE_VERSION is not specified\nPlease configure it at {ENV_PATH} before running this command again!")
             raise typer.Exit(code=1)
 
         info(f"Downloading latest firmware.zip from \"{FW_URL_BASE}\"...")
