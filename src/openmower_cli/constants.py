@@ -22,6 +22,7 @@ except Exception:
 
 
 # Docker compose configuration
+HARDWARE_PLATFORM: str | None = os.environ.get("HARDWARE_PLATFORM")
 COMPOSE_FILE: str = os.environ.get("OPENMOWER_COMPOSE_FILE", "/opt/stacks/openmower/compose.yaml")
 DOCKER_BIN: str = os.environ.get("OPENMOWER_DOCKER_BIN", "/usr/bin/docker")
 STACK_NAME: str = os.environ.get("OPENMOWER_STACK_NAME", "openmower")

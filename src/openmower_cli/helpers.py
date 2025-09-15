@@ -1,32 +1,15 @@
-import os
-import subprocess
-from typing import List, Optional
-from pathlib import Path
-from datetime import datetime, timedelta
 import json
-import requests
-from openmower_cli.console import error, warn, info
-import typer
+import subprocess
 import tempfile
-import zipfile
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import List, Optional
+
+import requests
+import typer
+
+from openmower_cli.console import error, warn, info
 from openmower_cli.constants import LAST_CHECK_FILE, DEFAULT_GH_REPO
-
-TRUE_VALUES = {"1", "true", "t", "yes", "y", "on"}
-FALSE_VALUES = {"0", "false", "f", "no", "n", "off"}
-
-
-def env_bool(name: str) -> bool | None:
-    val = os.getenv(name)
-    if val is None:
-        return None
-    s = val.strip().lower()
-    if s in TRUE_VALUES:
-        return True
-    if s in FALSE_VALUES:
-        return False
-    raise ValueError(f"Invalid boolean for {name!r}: {val!r}. "
-                     f"Use one of {sorted(TRUE_VALUES | FALSE_VALUES)}")
 
 
 def run(cmd: List[str]) -> None:
@@ -143,7 +126,8 @@ def fetch_github_release(repo: str, tag: str | None = None) -> dict:
     return r.json()
 
 
-def fetch_github_release_zip(repo: str, expected_asset_suffix: str | None = None, tag: str | None = None) -> tuple[Path, str, tempfile.TemporaryDirectory]:
+def fetch_github_release_zip(repo: str, expected_asset_suffix: str | None = None, tag: str | None = None) -> tuple[
+    Path, str, tempfile.TemporaryDirectory]:
     """Download a release asset (.zip) from GitHub to a temporary directory and return (zip_path, tag, tmpdir_handle).
     - repo: 'owner/name'
     - expected_asset_suffix: e.g., '.zip' or a specific name to match; if None, picks first .zip

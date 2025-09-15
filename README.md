@@ -32,8 +32,8 @@ openmower --help
 openmower --version
 ```
 
-The CLI selects command groups based on the environment variable `V2_HARDWARE`:
-- If `V2_HARDWARE` is true-like (e.g., `1`, `true`, `yes`), commands under the newer `openmower` group are enabled.
+The CLI selects command groups based on the environment variable `HARDWARE_PLATFORM`:
+- If `HARDWARE_PLATFORM` is set to `2` commands under the newer `openmower` group are enabled.
 - Otherwise, legacy commands are used. If the variable is not set, a warning is printed and legacy commands are used by default.
 
 ### Common stack commands
@@ -111,7 +111,7 @@ Linting and formatting are managed via pre-commit hooks (a `pre-commit` helper s
 ## Troubleshooting
 - Docker not found: ensure `/usr/bin/docker` exists or adjust your environment to provide Docker with the compose plugin.
 - Permission errors with Docker: add your user to the `docker` group or run with sufficient privileges.
-- V2 hardware commands missing: set `V2_HARDWARE=1` to enable the new command group (currently minimal placeholder implementation).
+- V2 hardware commands missing: set `HARDWARE_PLATFORM=2` to enable the new command group.
 - Self-update says executable is not a zipapp: the feature is only for the packaged zipapp artifact; when running from source or pip install, use your package manager to update instead.
 
 ## License

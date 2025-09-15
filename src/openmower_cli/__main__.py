@@ -4,7 +4,7 @@ import openmower_cli.openmower_commands
 import openmower_cli.openmower_legacy_commands
 import openmower_cli.openmower_common_commands
 from openmower_cli.console import warn
-from openmower_cli.helpers import env_bool
+from openmower_cli.constants import HARDWARE_PLATFORM
 from openmower_cli import __version__
 
 def create_app():
@@ -35,10 +35,14 @@ def create_app():
         # Never block startup for update checks
         pass
 
-    is_v2_hardware = env_bool("V2_HARDWARE")
-    if is_v2_hardware is None:
-        warn("V2_HARDWARE environment variable not set. Using legacy commands.")
+    if HARDWARE_PLATFORM is None:
+        warn("HARDWARE_PLATFORM environment variable not set. Using legacy commands.")
         is_v2_hardware = False
+    elif HARDWARE_PLATFORM not in ["1", "2"]:
+        warn(f"Unknown hardware platform: {HARDWARE_PLATFORM}. Using legacy commands.")
+        is_v2_hardware = False
+    else:
+        is_v2_hardware = HARDWARE_PLATFORM == "2"
 
     if is_v2_hardware:
         app.add_typer(openmower_cli.openmower_commands.openmower_app)
