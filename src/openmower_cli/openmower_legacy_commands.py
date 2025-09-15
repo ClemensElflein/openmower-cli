@@ -28,15 +28,6 @@ def _run_socat(port: int, device: str) -> int:
 
     Returns the final exit code (0 for graceful Ctrl-C).
     """
-    running = True
-
-    def _handle_sigint(signum, frame):
-        nonlocal running
-        info("Interrupt received! Stopping...")
-        running = False
-
-    # Register SIGINT handler
-    signal.signal(signal.SIGINT, _handle_sigint)
 
     info(f"Running socat for device: {device} on port: {port} ...")
 
