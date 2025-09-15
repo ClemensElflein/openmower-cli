@@ -40,7 +40,7 @@ def start():
 @openmower_common_app.command()
 def stop():
     """Stop the stack."""
-    args = _compose_base_args() + ["stop"]
+    args = _compose_base_args() + ["down"]
     run(args)
 
 
