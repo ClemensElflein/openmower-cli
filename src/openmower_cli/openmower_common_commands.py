@@ -156,7 +156,7 @@ def configure():
         info("No changes detected in .env. Stack not restarted.")
 
 
-@openmower_common_app.command("self-update")
+@openmower_common_app.command("update-self")
 def self_update(
     version: Optional[str] = typer.Option(None, "--version", "-v", help="Update to a specific tag (e.g., v1.2.3). Defaults to the latest release."),
     repo: str = typer.Option(DEFAULT_GH_REPO, "--repo", help="GitHub repo slug 'owner/name' to fetch releases from."),
@@ -216,20 +216,8 @@ def self_update(
         # Replace current executable atomically
         info(f"Updating {exe_path} ...")
         try:
-            # Write to a temp path in the same directory for atomic replace
-            target_dir = exe_path.parent
-            tmp_target = target_dir / (exe_path.name + ".tmp")
-            # Copy contents
-            with open(new_bin, 'rb') as src, open(tmp_target, 'wb') as dst:
-                while True:
-                    chunk = src.read(1024 * 256)
-                    if not chunk:
-                        break
-                    dst.write(chunk)
             # Preserve executable bits
-            st = os.stat(tmp_target)
-            os.chmod(tmp_target, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-            os.replace(tmp_target, exe_path)
+            os.replace(new_bin, exe_path)
         except PermissionError as e:
             error(f"Failed to update executable at: {e}.")
             raise typer.Exit(code=1)
