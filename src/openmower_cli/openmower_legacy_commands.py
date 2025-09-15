@@ -18,6 +18,7 @@ DEVICE_MAP = {
 }
 
 DEFAULT_PORT = 1234
+GPS_DEFAULT_PORT = 2000
 
 # Firmware update constants (mirror legacy bash script)
 FW_URL_BASE = "https://github.com/ClemensElflein/OpenMower"
@@ -25,9 +26,9 @@ FW_URL = f"{FW_URL_BASE}/releases/download/latest/firmware"
 
 
 def _run_socat(port: int, device: str, baudrate: int) -> int:
-    """Run socat in a loop like the bash script until interrupted.
+    """Run socat bridging a serial device to a TCP port.
 
-    Returns the final exit code (0 for graceful Ctrl-C).
+    Returns the final exit code (0 on normal completion).
     """
 
     info(f"Running socat for device: {device} on port: {port} ...")
@@ -142,6 +143,23 @@ def serial_bridge(
         raise typer.Exit(code=2)
 
     code = _run_socat(port=port, device=device, baudrate=115200)
+    raise typer.Exit(code=code)
+
+
+@openmower_legacy_app.command("expose-gps")
+def expose_gps(
+    baudrate: int = typer.Argument(..., help="Baudrate for the GPS serial device (e.g., 115200)")
+):
+    """Expose the GPS device (/dev/ttyAMA2) over TCP using socat.
+
+    Example: openmower expose-gps 115200
+    """
+    device = "/dev/ttyAMA2"
+    if not os.path.exists(device):
+        error(f"GPS device not found at {device}.")
+        raise typer.Exit(code=1)
+
+    code = _run_socat(port=GPS_DEFAULT_PORT, device=device, baudrate=baudrate)
     raise typer.Exit(code=code)
 
 
