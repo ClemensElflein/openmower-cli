@@ -49,10 +49,9 @@ def stop():
 
 @openmower_common_app.command()
 def restart():
-    """Restart the stack."""
-    args = _compose_base_args() + ["restart"]
-    run(args)
-
+    """Restart the stack (down + up)."""
+    stop()
+    start()
 
 @openmower_common_app.command("status")
 def status_cmd():
