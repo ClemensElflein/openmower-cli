@@ -37,3 +37,4 @@ FW_BIN_NAME: str | None = os.environ.get("OPENMOWER_FW_CUSTOM_BIN_NAME")
 
 # Paths for internal state/cache files
 LAST_CHECK_FILE: Path = Path(os.path.expanduser("~/.config/openmower-cli/last_update_check.json"))
+SETTINGS_FILE: Path = Path(os.path.expanduser("~/.config/openmower-cli/settings.json"))

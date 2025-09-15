@@ -9,7 +9,7 @@ import requests
 import typer
 
 from openmower_cli.console import error, warn, info
-from openmower_cli.constants import LAST_CHECK_FILE, DEFAULT_GH_REPO
+from openmower_cli.constants import LAST_CHECK_FILE, DEFAULT_GH_REPO, SETTINGS_FILE
 
 
 def run(cmd: List[str]) -> None:
@@ -81,6 +81,25 @@ def _is_newer(latest: str, current: str) -> bool:
     a += [0] * (n - len(a))
     b += [0] * (n - len(b))
     return a > b
+
+
+def read_settings() -> dict:
+    try:
+        if SETTINGS_FILE.exists():
+            with open(SETTINGS_FILE, "r") as f:
+                return json.load(f) or {}
+    except Exception:
+        return {}
+    return {}
+
+
+def write_settings(data: dict) -> None:
+    try:
+        SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(SETTINGS_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
 
 
 def check_for_update_if_needed(current_version: str, repo: str = DEFAULT_GH_REPO, max_age_days: int = 7) -> None:

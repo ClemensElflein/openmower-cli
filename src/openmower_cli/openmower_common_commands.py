@@ -1,19 +1,16 @@
-import subprocess
 import sys
+import hashlib
 import os
-import platform
 import stat
-import tempfile
+import sys
 import zipfile
 from pathlib import Path
 from typing import List, Optional
 
-import requests
-import hashlib
-
-from openmower_cli.console import info, warn, error, success
-from openmower_cli.helpers import run
 import typer
+
+from openmower_cli.console import info, error, success
+from openmower_cli.helpers import run, read_settings, write_settings
 
 openmower_common_app = typer.Typer(help="OpenMower (Legacy) Commands", no_args_is_help=True)
 
@@ -23,7 +20,6 @@ from openmower_cli.constants import DEFAULT_GH_REPO, COMPOSE_FILE, DOCKER_BIN, D
 def _compose_base_args() -> List[str]:
     """Build the base docker compose command with -f compose file."""
     return [DOCKER_BIN, "compose", "-f", COMPOSE_FILE]
-
 
 
 @openmower_common_app.command()
@@ -134,11 +130,32 @@ def configure():
             # If touch fails, still try to open nano; it may allow writing
             pass
 
-    info(f"Opening {env_path} in nano ...")
+    # Determine preferred editor from settings or prompt
+    settings = read_settings()
+    editor_bin = settings.get("editor")
+
+    # If not set, prompt the user
+    if not editor_bin:
+        info("Select your preferred editor for configuring .env")
+        info("We suggest 'nano' for Linux/macOS and 'mcedit' for Windows.")
+        # Offer simple choices
+        default_idx = 0
+        prompt = f"Choose editor [1] nano, [2] mcedit): "
+        try:
+            ans = typer.prompt(prompt, default=str(default_idx + 1))
+        except Exception:
+            ans = str(default_idx + 1)
+        ans = str(ans).strip()
+        editor_bin = "nano" if ans in ("1", "nano") else ("mcedit" if ans in ("2", "mcedit") else "nano")
+        settings["editor"] = editor_bin
+        write_settings(settings)
+        success(f"Saved preferred editor: {editor_bin}")
+
+    info(f"Opening {env_path} in {editor_bin} ...")
     try:
-        run(["nano", str(env_path)])
-    except typer.Exit as e:
-        # If user exited nano with non-zero (rare) just propagate
+        run([editor_bin, str(env_path)])
+    except typer.Exit:
+        # Propagate return code
         raise
 
     after_hash = None
@@ -158,9 +175,12 @@ def configure():
 
 @openmower_common_app.command("update-self")
 def self_update(
-    version: Optional[str] = typer.Option(None, "--version", "-v", help="Update to a specific tag (e.g., v1.2.3). Defaults to the latest release."),
-    repo: str = typer.Option(DEFAULT_GH_REPO, "--repo", help="GitHub repo slug 'owner/name' to fetch releases from."),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Only check and print what would be done; do not modify files."),
+        version: Optional[str] = typer.Option(None, "--version", "-v",
+                                              help="Update to a specific tag (e.g., v1.2.3). Defaults to the latest release."),
+        repo: str = typer.Option(DEFAULT_GH_REPO, "--repo",
+                                 help="GitHub repo slug 'owner/name' to fetch releases from."),
+        dry_run: bool = typer.Option(False, "--dry-run",
+                                     help="Only check and print what would be done; do not modify files."),
 ):
     """Self-update the openmower zipapp from GitHub Releases.
 
