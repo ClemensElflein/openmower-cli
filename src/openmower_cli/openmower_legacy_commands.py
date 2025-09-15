@@ -149,10 +149,10 @@ def serial_bridge(
 def update_firmware():
     """Download the latest RP2040 firmware for the configured hardware and flash it using the system upload script.
 
-    - Requires OM_HARDWARE_VERSION environment variable to be set (from /boot/openmower/mower_config.txt).
+    - Requires FIRMWARE environment variable to be set (from .env file).
     - Uses a temporary directory and does not write into $HOME.
     - Downloads firmware.zip and verifies checksum against the latest release.
-    - Extracts firmware/<OM_HARDWARE_VERSION>/firmware.elf into a temp file.
+    - Extracts firmware/<FIRMWARE>/firmware.elf into a temp file.
     - Uploads the extracted firmware.elf via openocd.
     """
     import tempfile
@@ -165,9 +165,9 @@ def update_firmware():
     local_fw = os.path.join(tmp_dir, "firmware.elf")
 
     try:
-        hw = os.getenv("OM_HARDWARE_VERSION", "").strip()
+        hw = os.getenv("FIRMWARE", "").strip()
         if not hw:
-            error(f"OM_HARDWARE_VERSION is not specified\nPlease configure it at {ENV_PATH} before running this command again!")
+            error(f"FIRMWARE is not specified\nPlease configure it at {ENV_PATH} before running this command again!")
             raise typer.Exit(code=1)
 
         info(f"Downloading latest firmware.zip from \"{FW_URL_BASE}\"...")
