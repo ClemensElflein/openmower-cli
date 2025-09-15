@@ -28,6 +28,9 @@ def pull():
     info(f"Pulling compose stack images from {COMPOSE_FILE} ...")
     args = _compose_base_args() + ["pull"]
     run(args)
+    # Remove unused images
+    run([DOCKER_BIN, "system", "prune", "--force"])
+
 
 
 @openmower_common_app.command()
