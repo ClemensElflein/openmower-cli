@@ -35,6 +35,9 @@ DEFAULT_GH_REPO: str = os.environ.get("OPENMOWER_CLI_REPO", "ClemensElflein/open
 FW_REPO: str = os.environ.get("OPENMOWER_FW_REPO", "xtech/fw-openmower-v2")
 FW_BIN_NAME: str | None = os.environ.get("OPENMOWER_FW_CUSTOM_BIN_NAME")
 
+# Mower configuration file path
+MOWER_PARAMS_FILE: Path = Path(os.path.expanduser("~/mower_params.yaml"))
+
 # Paths for internal state/cache files
 LAST_CHECK_FILE: Path = Path(os.path.expanduser("~/.config/openmower-cli/last_update_check.json"))
 SETTINGS_FILE: Path = Path(os.path.expanduser("~/.config/openmower-cli/settings.json"))

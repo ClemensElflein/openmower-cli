@@ -1,4 +1,3 @@
-import sys
 import hashlib
 import os
 import stat
@@ -14,7 +13,8 @@ from openmower_cli.helpers import run, read_settings, write_settings
 
 openmower_common_app = typer.Typer(help="OpenMower (Legacy) Commands", no_args_is_help=True)
 
-from openmower_cli.constants import DEFAULT_GH_REPO, COMPOSE_FILE, DOCKER_BIN, DEFAULT_SERVICE, STACK_NAME, ENV_PATH
+from openmower_cli.constants import DEFAULT_GH_REPO, COMPOSE_FILE, DOCKER_BIN, DEFAULT_SERVICE, STACK_NAME, ENV_PATH, \
+    MOWER_PARAMS_FILE
 
 
 def _compose_base_args() -> List[str]:
@@ -106,26 +106,40 @@ def shell_cmd(
 
 
 @openmower_common_app.command("configure")
-def configure():
-    """Open the stack .env in nano and restart the docker stack if changes were made."""
-    env_path = Path(ENV_PATH)
+def configure(
+    target: str = typer.Argument(
+        help="What to configure: 'env' for the stack .env or 'ros' for ~/mower_params.yaml",
+        show_default=True,
+    )
+):
+    """Open the selected config in your editor and restart the docker stack if changes were made.
+
+    Usage:
+      - configure env -> edit the stack .env
+      - configure ros -> edit ~/mower_params.yaml
+    """
+    # Determine which file to edit
+    if str(target).lower() == "ros":
+        file_path = MOWER_PARAMS_FILE
+    else:
+        file_path = Path(ENV_PATH)
 
     # Ensure parent dir exists; create empty file if missing
     try:
-        env_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
     except Exception:
         pass
 
     before_hash = None
-    if env_path.exists():
+    if file_path.exists():
         try:
-            before_hash = hashlib.sha256(env_path.read_bytes()).hexdigest()
+            before_hash = hashlib.sha256(file_path.read_bytes()).hexdigest()
         except Exception:
             before_hash = None
     else:
         # Create empty file so nano can open it
         try:
-            env_path.touch()
+            file_path.touch()
         except Exception:
             # If touch fails, still try to open nano; it may allow writing
             pass
@@ -136,7 +150,7 @@ def configure():
 
     # If not set, prompt the user
     if not editor_bin:
-        info("Select your preferred editor for configuring .env")
+        info("Select your preferred editor for configuring")
         info("We suggest 'nano' for Linux/macOS and 'mcedit' for Windows.")
         # Offer simple choices
         default_idx = 0
@@ -151,26 +165,26 @@ def configure():
         write_settings(settings)
         success(f"Saved preferred editor: {editor_bin}")
 
-    info(f"Opening {env_path} in {editor_bin} ...")
+    info(f"Opening {file_path} in {editor_bin} ...")
     try:
-        run([editor_bin, str(env_path)])
+        run([editor_bin, str(file_path)])
     except typer.Exit:
         # Propagate return code
         raise
 
     after_hash = None
-    if env_path.exists():
+    if file_path.exists():
         try:
-            after_hash = hashlib.sha256(env_path.read_bytes()).hexdigest()
+            after_hash = hashlib.sha256(file_path.read_bytes()).hexdigest()
         except Exception:
             after_hash = None
 
     if before_hash != after_hash:
-        info("Detected changes in .env. Applying and restarting stack (docker compose up -d) ...")
+        info("Detected changes. Restarting Stack ...")
         restart()
         success("Stack restarted with updated environment.")
     else:
-        info("No changes detected in .env. Stack not restarted.")
+        info("No changes detected in. Stack not restarted.")
 
 
 @openmower_common_app.command("update-self")
