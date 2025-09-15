@@ -10,10 +10,11 @@ from openmower_cli.console import info, warn, error, success
 openmower_legacy_app = typer.Typer(help="OpenMower Commands (Legacy)", no_args_is_help=True)
 
 # Map arguments to device paths
+# TODO: if we want to support the OLD openmower v1, we need a different map
 DEVICE_MAP = {
-    "left": "/dev/ttyAMA4",
-    "right": "/dev/ttyAMA2",
-    "mower": "/dev/ttyAMA3",
+    "left": "/dev/ttyAMA5",
+    "right": "/dev/ttyAMA3",
+    "mower": "/dev/ttyAMA4",
 }
 
 DEFAULT_PORT = 1234
