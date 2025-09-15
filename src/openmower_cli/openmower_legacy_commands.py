@@ -23,7 +23,7 @@ FW_URL_BASE = "https://github.com/ClemensElflein/OpenMower"
 FW_URL = f"{FW_URL_BASE}/releases/download/latest/firmware"
 
 
-def _run_socat(port: int, device: str) -> int:
+def _run_socat(port: int, device: str, baudrate: int) -> int:
     """Run socat in a loop like the bash script until interrupted.
 
     Returns the final exit code (0 for graceful Ctrl-C).
@@ -35,7 +35,7 @@ def _run_socat(port: int, device: str) -> int:
         "sudo",
         "socat",
         f"TCP-LISTEN:{port},reuseaddr,fork",
-        f"FILE:{device},b115200,cs8,raw,echo=0",
+        f"FILE:{device},b{baudrate},cs8,raw,echo=0",
     ]
     run(cmd)
     return 0
@@ -140,7 +140,7 @@ def serial_bridge(
         error(f"Error: Invalid argument. Valid values are: {valid}.")
         raise typer.Exit(code=2)
 
-    code = _run_socat(port=port, device=device)
+    code = _run_socat(port=port, device=device, baudrate=115200)
     raise typer.Exit(code=code)
 
 
