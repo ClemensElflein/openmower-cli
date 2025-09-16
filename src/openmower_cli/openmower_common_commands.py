@@ -267,7 +267,7 @@ def self_update(
             os.chmod(tmp_target, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
             os.replace(tmp_target, exe_path)
         except PermissionError as e:
-            error(f"Failed to update executable at: {e}.")
+            error(f"Failed to update executable. Rerun with sudo!")
             raise typer.Exit(code=1)
         success(f"Updated successfully to {tag_name or 'latest'}. Please re-run the command.")
     finally:
