@@ -11,7 +11,7 @@ ENV_PATH: str = os.environ.get("OPENMOWER_ENV_PATH", "/opt/stacks/openmower/.env
 try:
     if os.path.exists(ENV_PATH):
         _DOTENV_VALUES = dotenv_values(ENV_PATH) or {}
-        info(f"Loaded .env from {ENV_PATH} (not injected into environment)")
+        info(f"Loaded .env from {ENV_PATH}")
     else:
         _DOTENV_VALUES = {}
         warn(f"Environment file {ENV_PATH} not found. Using system environment variables only.")
