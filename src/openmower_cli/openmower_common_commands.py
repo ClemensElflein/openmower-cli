@@ -156,7 +156,7 @@ def configure(
         info("We suggest 'nano' for Linux/macOS and 'mcedit' for Windows.")
         # Offer simple choices
         default_idx = 0
-        prompt = f"Choose editor [1] nano, [2] mcedit): "
+        prompt = f"Choose editor [1] nano, [2] mcedit: "
         try:
             ans = typer.prompt(prompt, default=str(default_idx + 1))
         except Exception:
