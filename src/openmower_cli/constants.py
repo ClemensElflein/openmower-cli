@@ -42,7 +42,7 @@ FW_REPO: str = get_env("OPENMOWER_FW_REPO", "xtech/fw-openmower-v2")
 FW_BIN_NAME: str | None = get_env("OPENMOWER_FW_CUSTOM_BIN_NAME")
 
 # Mower configuration file path
-MOWER_PARAMS_FILE: Path = Path(os.path.expanduser("~/mower_params.yaml"))
+MOWER_PARAMS_FILE: Path = Path(os.path.expanduser("~/params/mower_params.yaml"))
 
 # Paths for internal state/cache files
 LAST_CHECK_FILE: Path = Path(os.path.expanduser("~/.config/openmower-cli/last_update_check.json"))
