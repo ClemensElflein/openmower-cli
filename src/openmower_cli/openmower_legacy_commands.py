@@ -2,7 +2,7 @@ import signal
 import os
 from typing import Optional
 
-from openmower_cli.constants import ENV_PATH
+from openmower_cli.constants import ENV_PATH, get_env
 from openmower_cli.helpers import which, run
 import typer
 from openmower_cli.console import info, warn, error, success
@@ -183,7 +183,7 @@ def update_firmware():
     local_fw = os.path.join(tmp_dir, "firmware.elf")
 
     try:
-        hw = os.getenv("FIRMWARE", "").strip()
+        hw = (get_env("FIRMWARE", "") or "").strip()
         if not hw:
             error(f"FIRMWARE is not specified\nPlease configure it at {ENV_PATH} before running this command again!")
             raise typer.Exit(code=1)

@@ -4,7 +4,7 @@ import zipfile
 import typer
 
 from openmower_cli.console import info, error, success
-from openmower_cli.constants import FW_BIN_NAME
+from openmower_cli.constants import FW_BIN_NAME, get_env
 from openmower_cli.helpers import fetch_github_release_zip, run
 
 openmower_app = typer.Typer(help="OpenMower Commands")
@@ -20,7 +20,7 @@ def update_firmware():
     - Extract into a temp folder and locate MOWER/firmware.bin
     - Upload via docker to the mower's xcore boot tool
     """
-    mower = os.environ.get("MOWER")
+    mower = get_env("MOWER")
     if not mower:
         error("Environment variable MOWER is not set. Please set MOWER to your mower identifier and retry.")
         raise typer.Exit(code=2)
