@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from dotenv import dotenv_values
 
-from openmower_cli.console import warn, error, info, success
+from openmower_cli.console import warn, error, info, success, message
 
 # Environment / configuration file path (do NOT load into os.environ)
 ENV_PATH: str = os.environ.get("OPENMOWER_ENV_PATH", "/opt/stacks/openmower/.env")
@@ -11,7 +11,7 @@ ENV_PATH: str = os.environ.get("OPENMOWER_ENV_PATH", "/opt/stacks/openmower/.env
 try:
     if os.path.exists(ENV_PATH):
         _DOTENV_VALUES = dotenv_values(ENV_PATH) or {}
-        info(f"Loaded .env from {ENV_PATH}")
+        message(f"Loaded .env from {ENV_PATH}")
     else:
         _DOTENV_VALUES = {}
         warn(f"Environment file {ENV_PATH} not found. Using system environment variables only.")

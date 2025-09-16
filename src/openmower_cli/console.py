@@ -4,6 +4,11 @@ def warn(message: str) -> None:
     """Print a warning message in a consistent format."""
     print(f"[bold yellow]:warning: Warning:[/bold yellow] {message}")
 
+def message(message: str) -> None:
+    """Print a basic message in a consistent format."""
+    print(message)
+
+
 def info(message: str) -> None:
     """Print an info message in a consistent format."""
     print(f"[bold cyan]:information_source: Info:[/bold cyan] {message}")

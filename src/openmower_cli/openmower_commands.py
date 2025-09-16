@@ -3,7 +3,7 @@ import zipfile
 
 import typer
 
-from openmower_cli.console import info, error, success
+from openmower_cli.console import info, error, success, message
 from openmower_cli.constants import FW_BIN_NAME, get_env
 from openmower_cli.helpers import fetch_github_release_zip, run
 
@@ -37,8 +37,8 @@ def update_firmware():
 
     tmpdir = zip_path.parent
     try:
-        info(f"Downloaded firmware archive: {zip_path}")
-        info("Extracting firmware archive ...")
+        message(f"Downloaded firmware archive: {zip_path}")
+        message("Extracting firmware archive ...")
         try:
             with zipfile.ZipFile(zip_path) as zf:
                 zf.extractall(tmpdir)
@@ -56,7 +56,7 @@ def update_firmware():
             raise typer.Exit(code=1)
 
         # Run docker uploader
-        info("Uploading firmware to mower via docker ...")
+        message("Uploading firmware via docker ...")
         # Fetch the latest docker image
         from openmower_cli.constants import DOCKER_BIN
         run([DOCKER_BIN, "pull", "ghcr.io/xtech/fw-xcore-boot:latest"])

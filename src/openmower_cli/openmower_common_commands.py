@@ -8,7 +8,7 @@ from typing import List, Optional
 
 import typer
 
-from openmower_cli.console import info, error, success
+from openmower_cli.console import info, error, success, message
 from openmower_cli.helpers import run, read_settings, write_settings
 
 openmower_common_app = typer.Typer(help="OpenMower (Legacy) Commands", no_args_is_help=True)
@@ -167,7 +167,7 @@ def configure(
         write_settings(settings)
         success(f"Saved preferred editor: {editor_bin}")
 
-    info(f"Opening {file_path} in {editor_bin} ...")
+    message(f"Opening {file_path} in {editor_bin} ...")
     try:
         run([editor_bin, str(file_path)])
     except typer.Exit:
@@ -186,7 +186,7 @@ def configure(
         restart()
         success("Stack restarted with updated environment.")
     else:
-        info("No changes detected in. Stack not restarted.")
+        info(f"No changes detected. Stack not restarted.")
 
 
 @openmower_common_app.command("update-self")
@@ -227,7 +227,7 @@ def self_update(
     except Exception as e:
         error(str(e))
         raise typer.Exit(code=1)
-    info(f"Downloaded release zip: {zip_path}")
+    message(f"Downloaded release zip: {zip_path}")
 
     try:
         if dry_run:
@@ -236,7 +236,7 @@ def self_update(
 
         # Extract and locate the shiv executable (likely named 'openmower')
         td = zip_path.parent
-        info("Extracting artifact ...")
+        message("Extracting artifact ...")
         with zipfile.ZipFile(zip_path) as zf:
             zf.extractall(td)
 
@@ -250,7 +250,7 @@ def self_update(
         os.chmod(new_bin, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
         # Replace current executable atomically
-        info(f"Updating {exe_path} ...")
+        message(f"Updating {exe_path} ...")
         try:
             # Write to a temp path in the same directory for atomic replace
             target_dir = exe_path.parent

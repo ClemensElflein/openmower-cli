@@ -5,7 +5,7 @@ from typing import Optional
 from openmower_cli.constants import ENV_PATH, get_env
 from openmower_cli.helpers import which, run
 import typer
-from openmower_cli.console import info, warn, error, success
+from openmower_cli.console import info, warn, error, success, message
 
 openmower_legacy_app = typer.Typer(help="OpenMower Commands (Legacy)", no_args_is_help=True)
 
@@ -55,7 +55,7 @@ def flash_pico(
 
     # Power GPIO 10 high
     if which("pinctrl"):
-        info("Using pinctrl to set GPIO10 high (RPI power).")
+        message("Using pinctrl to set GPIO10 high (RPI power).")
         run(["pinctrl", "set", "10", "op", "dh"])
     elif os.path.exists("/sys/class/gpio/gpio10") or os.path.exists("/sys/class/gpio"):  # type: ignore
         try:
@@ -66,7 +66,7 @@ def flash_pico(
                 f.write("out")
             with open("/sys/class/gpio/gpio10/value", "w") as f:
                 f.write("1")
-            info("GPIO10 set to high via sysfs.")
+            message("GPIO10 set to high via sysfs.")
         except Exception as e:
             error(f"Failed to set GPIO10 via sysfs: {e}")
             raise typer.Exit(code=1)
@@ -97,7 +97,7 @@ def openocd_cmd():
 
     # Power GPIO 10 high
     if which("pinctrl"):
-        info("Using pinctrl to set GPIO10 high (RPI power).")
+        message("Using pinctrl to set GPIO10 high (RPI power).")
         run(["pinctrl", "set", "10", "op", "dh"])
     elif os.path.exists("/sys/class/gpio/gpio10") or os.path.exists("/sys/class/gpio"):  # type: ignore
         try:
@@ -108,7 +108,7 @@ def openocd_cmd():
                 f.write("out")
             with open("/sys/class/gpio/gpio10/value", "w") as f:
                 f.write("1")
-            info("GPIO10 set to high via sysfs.")
+            message("GPIO10 set to high via sysfs.")
         except Exception as e:
             error(f"Failed to set GPIO10 via sysfs: {e}")
             raise typer.Exit(code=1)
@@ -203,7 +203,7 @@ def update_firmware():
         success("Firmware downloaded successfully.")
 
         # Extract the correct firmware.elf from the zip
-        info(f"Extracting firmware for \"{hw}\"")
+        message(f"Extracting firmware for \"{hw}\"")
         import zipfile
 
         member_path = f"firmware/{hw}/firmware.elf"
