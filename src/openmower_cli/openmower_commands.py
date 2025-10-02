@@ -15,14 +15,14 @@ def update_firmware():
     """Update mower firmware to the latest release from fw-openmower-v2.
 
     Steps:
-    - Check MOWER env variable is set
+    - Check FIRMWARE env variable is set
     - Download latest firmware release zip from GitHub
-    - Extract into a temp folder and locate MOWER/firmware.bin
+    - Extract into a temp folder and locate FIRMWARE/firmware.bin
     - Upload via docker to the mower's xcore boot tool
     """
-    mower = get_env("MOWER")
-    if not mower:
-        error("Environment variable MOWER is not set. Please set MOWER to your mower identifier and retry.")
+    firmware = get_env("FIRMWARE")
+    if not firmware:
+        error("Environment variable FIRMWARE is not set. Please set FIRMWARE to your firmware identifier and retry.")
         raise typer.Exit(code=2)
 
     from openmower_cli.constants import FW_REPO
@@ -46,13 +46,13 @@ def update_firmware():
             error(f"Failed to extract firmware archive: {e}")
             raise typer.Exit(code=1)
 
-        fw_path = tmpdir / f"openmower-{mower}.bin"
+        fw_path = tmpdir / f"openmower-{firmware}.bin"
         if FW_BIN_NAME is not None:
             info(f"Using custom firmware binary file name: {FW_BIN_NAME}.")
             fw_path = tmpdir / FW_BIN_NAME
 
         if not fw_path.exists() or not fw_path.is_file():
-            error(f"Firmware file not found at expected path: {fw_path}. Please ensure the release contains openmower-{mower}.bin. Your MOWER environment variable may be set incorrectly.")
+            error(f"Firmware file not found at expected path: {fw_path}. Please ensure the release contains openmower-{firmware}.bin. Your FIRMWARE environment variable may be set incorrectly.")
             raise typer.Exit(code=1)
 
         # Run docker uploader
@@ -70,7 +70,7 @@ def update_firmware():
             "--network=host",
             f"-v{fw_dir}:/workdir",
             "ghcr.io/xtech/fw-xcore-boot:latest",
-            "-i", "eth0", "upload", f"/workdir/openmower-{mower}.bin",
+            "-i", "eth0", "upload", f"/workdir/openmower-{firmware}.bin",
         ]
         try:
             run(cmd)
