@@ -46,3 +46,4 @@ MOWER_PARAMS_FILE: Path = Path(os.path.expanduser("~/params/mower_params.yaml"))
 # Paths for internal state/cache files
 LAST_CHECK_FILE: Path = Path(os.path.expanduser("~/.config/openmower-cli/last_update_check.json"))
 SETTINGS_FILE: Path = Path(os.path.expanduser("~/.config/openmower-cli/settings.json"))
+XCORE_CONFIG_FILE: Path = Path(os.path.expanduser("~/.config/openmower-cli/xcore.cfg"))

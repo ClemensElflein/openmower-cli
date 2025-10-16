@@ -2,9 +2,10 @@ import os
 import zipfile
 
 import typer
+import requests
 
 from openmower_cli.console import info, error, success, message
-from openmower_cli.constants import FW_BIN_NAME, get_env
+from openmower_cli.constants import FW_BIN_NAME, get_env, XCORE_CONFIG_FILE
 from openmower_cli.helpers import fetch_github_release_zip, run
 
 openmower_app = typer.Typer(help="OpenMower Commands")
@@ -86,3 +87,41 @@ def update_firmware():
             tmp_handle.cleanup()
         except Exception:
             pass
+
+
+@openmower_app.command()
+def openocd():
+    """Start openocd for xCore debugging.
+
+    Downloads and caches xcore.cfg from core.x-tech.online if needed,
+    then starts openocd listening on 0.0.0.0 so an IDE can connect to it.
+    """
+    # Ensure xcore.cfg is downloaded and cached
+    if not XCORE_CONFIG_FILE.exists():
+        info("Downloading xcore.cfg from core.x-tech.online ...")
+        try:
+            XCORE_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            response = requests.get("https://core.x-tech.online/downloads/openocd-xcore.cfg", timeout=30)
+            response.raise_for_status()
+            with open(XCORE_CONFIG_FILE, "wb") as f:
+                f.write(response.content)
+            success("xcore.cfg downloaded and cached successfully.")
+        except requests.RequestException as e:
+            error(f"Failed to download xcore.cfg: {e}")
+            raise typer.Exit(code=1)
+        except Exception as e:
+            error(f"Failed to save xcore.cfg: {e}")
+            raise typer.Exit(code=1)
+
+    # Run openocd
+    cmd = [
+        "openocd",
+        "-f",
+        str(XCORE_CONFIG_FILE),
+        "-f",
+        "target/stm32h7x.cfg",
+        "-c",
+        "bindto 0.0.0.0",
+    ]
+    info("Starting openocd for xCore ...")
+    run(cmd)
