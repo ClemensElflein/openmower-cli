@@ -122,7 +122,7 @@ def check_for_update_if_needed(current_version: str, repo: str = DEFAULT_GH_REPO
             rel = r.json()
             tag = rel.get("tag_name") or ""
             if tag and _is_newer(tag, current_version):
-                warn(f"A new version {tag} of openmower-cli is available. Run 'openmower self-update' to update.")
+                warn(f"A new version {tag} of openmower-cli is available. Run 'openmower update-self' to update.")
         # Regardless of outcome, update timestamp
         _write_last_check_ts(now)
     except Exception:
