@@ -104,7 +104,7 @@ def shell_cmd(
     info(f"Starting Shell in {service}")
     # No command provided: open interactive bash -l with env vars and TTY
     env_args = ["-e", "STACK_SHELL=1", "-e", f"STACK_NAME={STACK_NAME}"]
-    args = _compose_base_args() + ["exec", "-it"] + env_args + [service, "bash", "-l"]
+    args = _compose_base_args() + ["exec", "-it"] + env_args + [service, "bash", "-il"]
 
     # For interactive, we should set the subprocess to use the current stdin/stdout/stderr (default behavior)
     run(args)
