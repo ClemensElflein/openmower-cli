@@ -30,12 +30,14 @@ def pull():
     run(args)
     # Remove unused images
     run([DOCKER_BIN, "system", "prune", "--force"])
+    restart()
 
 
 
 @openmower_common_app.command()
 def start():
     """Start the stack (docker compose up -d)."""
+    info(f"Starting compose stack from {COMPOSE_FILE} ...")
     args = _compose_base_args() + ["up", "-d"]
     run(args)
 
@@ -43,6 +45,7 @@ def start():
 @openmower_common_app.command()
 def stop():
     """Stop the stack."""
+    info(f"Stopping compose stack from {COMPOSE_FILE} ...")
     args = _compose_base_args() + ["down"]
     run(args)
 
