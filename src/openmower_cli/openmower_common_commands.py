@@ -25,12 +25,13 @@ def _compose_base_args() -> List[str]:
 @openmower_common_app.command()
 def pull():
     """Pull image(s) for the stack."""
+    stop()
     info(f"Pulling compose stack images from {COMPOSE_FILE} ...")
     args = _compose_base_args() + ["pull"]
     run(args)
     # Remove unused images
     run([DOCKER_BIN, "system", "prune", "--force"])
-    restart()
+    start()
 
 
 
