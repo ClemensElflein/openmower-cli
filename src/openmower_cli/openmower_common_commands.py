@@ -111,21 +111,38 @@ def shell_cmd(
     run(args)
 
 
-@openmower_common_app.command("configure")
+@openmower_common_app.command("configure", help="Edit OpenMower configuration files.")
+@openmower_common_app.command("config", help="Edit OpenMower configuration files (Alias for configure).")
 def configure(
-    target: str = typer.Argument(
-        help="What to configure: 'env' for the stack .env or 'ros' for ~/mower_params.yaml",
-        show_default=True,
-    )
+    ctx: typer.Context,
+    target: Optional[str] = typer.Argument(
+        None,
+        metavar="TARGET",
+        help=(
+            "What to configure.\n"
+            " - 'env' -> edit the stack .env file used by Docker Compose\n"
+            " - 'ros' -> edit ~/mower_params.yaml (ROS parameters)\n"
+        ),
+        show_default=False,
+    ),
 ):
-    """Open the selected config in your editor and restart the docker stack if changes were made.
+    """Configure OpenMower settings by editing one of the configuration files.
 
-    Usage:
-      - configure env -> edit the stack .env
-      - configure ros -> edit ~/mower_params.yaml
+    Examples:
+      - openmower configure env
+      - openmower configure ros
+      - openmower config env   (alias)
+
+    After you save and exit the editor, if changes are detected the Docker stack
+    will be restarted automatically so the new configuration takes effect.
     """
-    # Determine which file to edit
-    if str(target).lower() == "ros":
+    # If no target is provided, show help for this command
+    if not target:
+        typer.echo(ctx.get_help())
+        raise typer.Exit()
+
+    # Normalize and determine which file to edit
+    if str(target).strip().lower() == "ros":
         file_path = MOWER_PARAMS_FILE
     else:
         file_path = Path(ENV_PATH)
