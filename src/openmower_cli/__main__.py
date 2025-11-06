@@ -49,6 +49,18 @@ def create_app():
     else:
         app.add_typer(openmower_cli.openmower_legacy_commands.openmower_legacy_app)
     app.add_typer(openmower_cli.openmower_common_commands.openmower_common_app)
+
+    # Provide `help` as an alias for `--help`
+    @app.command("help")
+    def _help_cmd(ctx: typer.Context):
+        """Show this help message (alias for --help)."""
+        parent = ctx.parent
+        if parent is not None:
+            typer.echo(parent.get_help())
+        else:
+            typer.echo(ctx.get_help())
+        raise typer.Exit()
+
     return app
 
 
