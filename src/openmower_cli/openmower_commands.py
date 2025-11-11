@@ -1,5 +1,9 @@
 import os
+import time
 import zipfile
+import tempfile
+from pathlib import Path
+from typing import Optional
 
 import typer
 import requests
@@ -12,12 +16,18 @@ openmower_app = typer.Typer(help="OpenMower Commands")
 
 
 @openmower_app.command()
-def update_firmware():
+def update_firmware(
+    from_pr: Optional[int] = typer.Option(
+        None,
+        "--from-pr",
+        help="Download firmware built for a specific pull request number.",
+    )
+):
     """Update mower firmware to the latest release from fw-openmower-v2.
 
     Steps:
     - Check FIRMWARE env variable is set
-    - Download latest firmware release zip from GitHub
+    - Download latest firmware release zip from GitHub (default) or from PR API when --from-pr is set
     - Extract into a temp folder and locate FIRMWARE/firmware.bin
     - Upload via docker to the mower's xcore boot tool
     """
@@ -29,14 +39,38 @@ def update_firmware():
     from openmower_cli.constants import FW_REPO
     repo = FW_REPO
 
-    info("Fetching latest firmware release from GitHub ...")
-    try:
-        zip_path, tag, tmp_handle = fetch_github_release_zip(repo, expected_asset_suffix=None, tag=None)
-    except Exception as e:
-        error(f"Failed to fetch firmware release: {e}")
-        raise typer.Exit(code=1)
+    # Decide source of firmware
+    if from_pr is not None:
+        url = f"https://api.openmower.de/v1/firmware/from-pr?pr={from_pr}"
+        info(f"Fetching firmware from PR #{from_pr} ...")
+        try:
+            td = tempfile.TemporaryDirectory()
+            tmpdir = Path(td.name)
+            zip_path = tmpdir / "firmware.zip"
+            with requests.get(url, stream=True, timeout=300) as resp:
+                if resp.status_code != 200:
+                    td.cleanup()
+                    error(f"HTTP Error: {resp.status_code}")
+                    raise typer.Exit(code=1)
+                with open(zip_path, "wb") as f:
+                    for chunk in resp.iter_content(chunk_size=1024 * 256):
+                        if chunk:
+                            f.write(chunk)
+            tag = f"PR #{from_pr}"
+            tmp_handle = td
+        except Exception as e:
+            error(f"Failed to fetch PR firmware")
+            raise typer.Exit(code=1)
+    else:
+        info("Fetching latest firmware release from GitHub ...")
+        try:
+            zip_path, tag, tmp_handle = fetch_github_release_zip(repo, expected_asset_suffix=None, tag=None)
+        except Exception as e:
+            error(f"Failed to fetch firmware release: {e}")
+            raise typer.Exit(code=1)
+        tmpdir = zip_path.parent
 
-    tmpdir = zip_path.parent
+    # Proceed with extraction and upload
     try:
         message(f"Downloaded firmware archive: {zip_path}")
         message("Extracting firmware archive ...")
@@ -46,7 +80,6 @@ def update_firmware():
         except Exception as e:
             error(f"Failed to extract firmware archive: {e}")
             raise typer.Exit(code=1)
-
         fw_path = tmpdir / f"openmower-{firmware}.bin"
         if FW_BIN_NAME is not None:
             info(f"Using custom firmware binary file name: {FW_BIN_NAME}.")
