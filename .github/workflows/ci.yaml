@@ -38,7 +38,13 @@ jobs:
       - name: Compute version
         id: version
         run: |
-          echo "VERSION=$(git describe --tags || git describe --always || echo "v0.0.0")" >> $GITHUB_OUTPUT
+          # If this run is for a tag (refs/tags/...), compute a cleaned version;
+          # otherwise set a safe default version for non-tag pushes.
+          if [[ "${GITHUB_REF:-}" =~ ^refs/tags/ ]]; then
+            echo "VERSION=$(git describe --tags || git describe --always || echo "v0.0.0")" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=0.0.0" >> $GITHUB_OUTPUT
+          fi
       - name: Build
         uses: docker/build-push-action@v6
         with:
