@@ -99,6 +99,7 @@ cd openmower-cli
 python -m venv .venv
 source .venv/bin/activate
 pip install -U pip setuptools wheel
+pip install -r requirements.txt
 pip install -e .
 ```
 Run the CLI from source:
