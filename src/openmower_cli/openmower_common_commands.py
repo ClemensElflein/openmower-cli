@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import List, Optional
 
 import typer
+import paho.mqtt.client as mqtt
+from jsonrpcserver import dispatch as jsonrpc_dispatch
 
 from openmower_cli.console import info, error, success, message
 from openmower_cli.helpers import run, read_settings, write_settings
@@ -14,7 +16,7 @@ from openmower_cli.helpers import run, read_settings, write_settings
 openmower_common_app = typer.Typer(help="OpenMower (Legacy) Commands", no_args_is_help=True)
 
 from openmower_cli.constants import DEFAULT_GH_REPO, COMPOSE_FILE, DOCKER_BIN, DEFAULT_SERVICE, STACK_NAME, ENV_PATH, \
-    MOWER_PARAMS_FILE
+    MOWER_PARAMS_FILE, MQTT_HOST, MQTT_PORT, MQTT_TOPIC_RPC_REQUEST, MQTT_TOPIC_RPC_RESPONSE
 
 
 def _compose_base_args() -> List[str]:
@@ -297,3 +299,40 @@ def self_update(
             tmp_handle.cleanup()
         except Exception:
             pass
+
+@openmower_common_app.command("service")
+def service_cmd():
+    """Start the MQTT RPC service."""
+    import openmower_cli.openmower_rpc_methods
+    info(f"Connecting to MQTT broker at {MQTT_HOST}:{MQTT_PORT}...")
+
+    def on_connect(client, userdata, flags, rc, properties=None):
+        if rc == 0:
+            info("Connected to MQTT broker")
+            client.subscribe(MQTT_TOPIC_RPC_REQUEST)
+        else:
+            error(f"Failed to connect to MQTT broker, return code {rc}")
+
+    def on_message(client, userdata, msg):
+        try:
+            payload = msg.payload.decode()
+            # dispatch returns a string or None
+            response = jsonrpc_dispatch(payload)
+            if response:
+                client.publish(MQTT_TOPIC_RPC_RESPONSE, response)
+        except Exception as e:
+            error(f"Error handling message: {e}")
+
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    client.on_connect = on_connect
+    client.on_message = on_message
+
+    try:
+        client.connect(MQTT_HOST, MQTT_PORT)
+        client.loop_forever()
+    except KeyboardInterrupt:
+        info("Stopping service...")
+        client.disconnect()
+    except Exception as e:
+        error(f"Service error: {e}")
+        raise typer.Exit(code=1)
