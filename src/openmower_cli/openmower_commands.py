@@ -9,7 +9,7 @@ import typer
 import requests
 
 from openmower_cli.console import info, error, success, message
-from openmower_cli.constants import FW_BIN_NAME, get_env, XCORE_CONFIG_FILE
+from openmower_cli.constants import FW_BIN_NAME, get_env, XCORE_CONFIG_FILE, BOOTLOADER_BIN_NAME
 from openmower_cli.helpers import fetch_github_release_zip, run
 
 openmower_app = typer.Typer(help="OpenMower Commands")
@@ -121,14 +121,7 @@ def update_firmware(
         except Exception:
             pass
 
-
-@openmower_app.command()
-def openocd():
-    """Start openocd for xCore debugging.
-
-    Downloads and caches xcore.cfg from core.x-tech.online if needed,
-    then starts openocd listening on 0.0.0.0 so an IDE can connect to it.
-    """
+def prepare_openocd_config():
     # Ensure xcore.cfg is downloaded and cached
     if not XCORE_CONFIG_FILE.exists():
         info("Downloading xcore.cfg from core.x-tech.online ...")
@@ -146,6 +139,15 @@ def openocd():
             error(f"Failed to save xcore.cfg: {e}")
             raise typer.Exit(code=1)
 
+@openmower_app.command()
+def openocd():
+    """Start openocd for xCore debugging.
+
+    Downloads and caches xcore.cfg from core.x-tech.online if needed,
+    then starts openocd listening on 0.0.0.0 so an IDE can connect to it.
+    """
+    prepare_openocd_config()
+
     # Run openocd
     cmd = [
         "openocd",
@@ -158,3 +160,68 @@ def openocd():
     ]
     info("Starting openocd for xCore ...")
     run(cmd)
+
+
+@openmower_app.command()
+def update_bootloader():
+    """Update xcore bootloader to the latest release.
+    """
+    from openmower_cli.constants import BOOTLOADER_REPO
+    repo = BOOTLOADER_REPO
+
+    info("Fetching latest firmware release from GitHub ...")
+    try:
+        zip_path, tag, tmp_handle = fetch_github_release_zip(repo, expected_asset_suffix=None, tag=None)
+    except Exception as e:
+        error(f"Failed to fetch firmware release: {e}")
+        raise typer.Exit(code=1)
+    tmpdir = zip_path.parent
+
+    # Proceed with extraction and upload
+    try:
+        message(f"Downloaded firmware archive: {zip_path}")
+        message("Extracting firmware archive ...")
+        try:
+            with zipfile.ZipFile(zip_path) as zf:
+                zf.extractall(tmpdir)
+        except Exception as e:
+            error(f"Failed to extract firmware archive: {e}")
+            raise typer.Exit(code=1)
+        fw_path = tmpdir / f"artifacts/bootloader/xcore-boot.elf"
+        if BOOTLOADER_BIN_NAME is not None:
+            info(f"Using custom firmware binary file name: {BOOTLOADER_BIN_NAME}.")
+            fw_path = tmpdir / BOOTLOADER_BIN_NAME
+
+        if not fw_path.exists() or not fw_path.is_file():
+            error(f"Firmware file not found at expected path: {fw_path}. Please ensure the release contains artifacts/bootloader/xcore-boot.elf.")
+            raise typer.Exit(code=1)
+
+
+        prepare_openocd_config()
+        # Run openocd upload
+        message("Uploading firmware via openocd ...")
+        # Run openocd
+        cmd = [
+            "openocd",
+            "-f",
+            str(XCORE_CONFIG_FILE),
+            "-f",
+            "target/stm32h7x.cfg",
+            "-c",
+            f"init; reset halt; stm32h7x mass_erase 0; program {fw_path.absolute()} verify reset; exit",
+        ]
+
+        try:
+            run(cmd)
+        except typer.Exit:
+            # run already emitted messages; re-raise
+            error("Error uploading firmware.")
+            raise
+
+        success(f"Firmware upload finished (release {tag or 'latest'}).")
+    finally:
+        # Ensure temporary download directory is removed
+        try:
+            tmp_handle.cleanup()
+        except Exception:
+            pass

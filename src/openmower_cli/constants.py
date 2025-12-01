@@ -39,6 +39,8 @@ DEFAULT_GH_REPO: str = get_env("OPENMOWER_CLI_REPO", "ClemensElflein/openmower-c
 # Firmware repo (can be overridden via env)
 FW_REPO: str = get_env("OPENMOWER_FW_REPO", "xtech/fw-openmower-v2")
 FW_BIN_NAME: str | None = get_env("OPENMOWER_FW_CUSTOM_BIN_NAME")
+BOOTLOADER_REPO: str = get_env("XCORE_BOOTLOADER_REPO", "xtech/fw-xcore-boot")
+BOOTLOADER_BIN_NAME: str | None = get_env("XCORE_BOOTLOADER_CUSTOM_BIN_NAME")
 
 # Mower configuration file path
 MOWER_PARAMS_FILE: Path = Path(os.path.expanduser("~/params/mower_params.yaml"))
