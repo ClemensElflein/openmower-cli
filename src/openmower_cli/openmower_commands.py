@@ -259,6 +259,7 @@ def serial_bridge(
         error(f"Error: Invalid argument. Valid values are: {valid}.")
         raise typer.Exit(code=2)
 
+    info(f"You can now run the VESC tool and connect to port {port}")
     code = _run_socat(target_ip="172.16.78.150", target_port=esc_port, port=port)
     raise typer.Exit(code=code)
 
@@ -266,5 +267,6 @@ def serial_bridge(
 @openmower_app.command("expose-gps")
 def expose_gps():
     f"""Expose the GPS device over TCP (port {GPS_DEFAULT_PORT})."""
+    info("You can now run u-center and connect to port 2000")
     code = _run_socat(target_ip="172.16.78.150", target_port=2000, port=GPS_DEFAULT_PORT)
     raise typer.Exit(code=code)
