@@ -11,9 +11,30 @@ import requests
 from openmower_cli.console import info, error, success, message
 from openmower_cli.constants import FW_BIN_NAME, get_env, XCORE_CONFIG_FILE, BOOTLOADER_BIN_NAME
 from openmower_cli.helpers import fetch_github_release_zip, run
+from openmower_cli.constants import ESC_DEFAULT_PORT, GPS_DEFAULT_PORT
 
 openmower_app = typer.Typer(help="OpenMower Commands")
 
+DEVICE_MAP = {
+    "left": 65102,
+    "mower": 65103,
+    "right": 65104,
+}
+
+def _run_socat(port: int, target_ip: str, target_port: int) -> int:
+    """Run socat bridging a serial device to a TCP port.
+
+    Returns the final exit code (0 on normal completion).
+    """
+
+    info(f"Running socat for device: {target_ip}:{target_port} -> 0.0.0.0:{port} ...")
+    cmd = [
+        "socat",
+        f"TCP-LISTEN:{port},fork",
+        f"TCP:{target_ip}:{target_port}",
+    ]
+    run(cmd)
+    return 0
 
 @openmower_app.command()
 def update_firmware(
@@ -225,3 +246,25 @@ def update_bootloader():
             tmp_handle.cleanup()
         except Exception:
             pass
+
+@openmower_app.command("expose-xesc")
+def serial_bridge(
+    which: str = typer.Argument(..., help="Which device to bridge: left, right, mower"),
+    port: int = typer.Option(ESC_DEFAULT_PORT, "--port", "-p", help=f"TCP port to listen on (default: {ESC_DEFAULT_PORT})"),
+):
+    """redirect TCP to the given ESC"""
+    esc_port: Optional[int] = DEVICE_MAP.get(which)
+    if esc_port is None:
+        valid = ", ".join(sorted(DEVICE_MAP))
+        error(f"Error: Invalid argument. Valid values are: {valid}.")
+        raise typer.Exit(code=2)
+
+    code = _run_socat(target_ip="172.16.78.150", target_port=esc_port, port=port)
+    raise typer.Exit(code=code)
+
+
+@openmower_app.command("expose-gps")
+def expose_gps():
+    f"""Expose the GPS device over TCP (port {GPS_DEFAULT_PORT})."""
+    code = _run_socat(target_ip="172.16.78.150", target_port=2000, port=GPS_DEFAULT_PORT)
+    raise typer.Exit(code=code)

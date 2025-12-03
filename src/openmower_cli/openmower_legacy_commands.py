@@ -2,7 +2,7 @@ import signal
 import os
 from typing import Optional
 
-from openmower_cli.constants import ENV_PATH, get_env
+from openmower_cli.constants import ENV_PATH, get_env, ESC_DEFAULT_PORT, GPS_DEFAULT_PORT
 from openmower_cli.helpers import which, run
 import typer
 from openmower_cli.console import info, warn, error, success, message
@@ -16,9 +16,6 @@ DEVICE_MAP = {
     "right": "/dev/ttyAMA3",
     "mower": "/dev/ttyAMA4",
 }
-
-DEFAULT_PORT = 1234
-GPS_DEFAULT_PORT = 2000
 
 # Firmware update constants (mirror legacy bash script)
 FW_URL_BASE = "https://github.com/ClemensElflein/OpenMower"
@@ -133,7 +130,7 @@ def openocd_cmd():
 @openmower_legacy_app.command("expose-xesc")
 def serial_bridge(
     which: str = typer.Argument(..., help="Which device to bridge: left, right, mower"),
-    port: int = typer.Option(DEFAULT_PORT, "--port", "-p", help=f"TCP port to listen on (default: {DEFAULT_PORT})"),
+    port: int = typer.Option(ESC_DEFAULT_PORT, "--port", "-p", help=f"TCP port to listen on (default: {ESC_DEFAULT_PORT})"),
 ):
     """Expose a serial device over TCP via socat (legacy behavior)."""
     device: Optional[str] = DEVICE_MAP.get(which)
@@ -150,8 +147,8 @@ def serial_bridge(
 def expose_gps(
     baudrate: int = typer.Argument(..., help="Baudrate for the GPS serial device (e.g., 115200)")
 ):
-    """Expose the GPS device (/dev/ttyAMA2) over TCP using socat.
-
+    f"""Expose the GPS device (/dev/ttyAMA2) over TCP using socat.
+    The GPS will be exposed on port {GPS_DEFAULT_PORT}.
     Example: openmower expose-gps 115200
     """
     device = "/dev/ttyAMA2"
