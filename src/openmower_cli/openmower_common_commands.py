@@ -1,5 +1,6 @@
 import hashlib
 import os
+import re
 import stat
 import sys
 import zipfile
@@ -18,6 +19,7 @@ openmower_common_app = typer.Typer(help="OpenMower (Legacy) Commands", no_args_i
 from openmower_cli.constants import DEFAULT_GH_REPO, COMPOSE_FILE, DOCKER_BIN, DEFAULT_SERVICE, STACK_NAME, ENV_PATH, \
     MOWER_PARAMS_FILE, MQTT_HOST, MQTT_PORT, MQTT_TOPIC_RPC_REQUEST, MQTT_TOPIC_RPC_RESPONSE
 
+valid_rpc_method = re.compile(r'"method"\s*:\s*"meta\.')
 
 def _compose_base_args() -> List[str]:
     """Build the base docker compose command with -f compose file."""
@@ -316,6 +318,8 @@ def service_cmd():
     def on_message(client, userdata, msg):
         try:
             payload = msg.payload.decode()
+            if not valid_rpc_method.search(payload):
+                return
             # dispatch returns a string or None
             response = jsonrpc_dispatch(payload)
             if response:

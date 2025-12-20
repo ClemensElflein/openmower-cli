@@ -1,5 +1,5 @@
 from jsonrpcserver import method, Result, Success
 
-@method(name="rpc.ping")
+@method(name="meta.rpc.ping")
 def ping() -> Result:
     return Success("pong")

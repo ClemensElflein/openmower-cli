@@ -58,6 +58,5 @@ GPS_DEFAULT_PORT = 2000
 # MQTT Configuration
 MQTT_HOST: str = get_env("OPENMOWER_MQTT_HOST", "localhost")
 MQTT_PORT: int = int(get_env("OPENMOWER_MQTT_PORT", "1883"))
-MQTT_TOPIC_PREFIX: str = 'meta/'
-MQTT_TOPIC_RPC_REQUEST: str = MQTT_TOPIC_PREFIX + "rpc/request"
-MQTT_TOPIC_RPC_RESPONSE: str = MQTT_TOPIC_PREFIX + "rpc/response"
+MQTT_TOPIC_RPC_REQUEST: str = "rpc/request"
+MQTT_TOPIC_RPC_RESPONSE: str = "rpc/response"
