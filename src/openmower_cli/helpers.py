@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import tempfile
 from datetime import datetime, timedelta
@@ -193,3 +194,26 @@ def fetch_github_release_zip(repo: str, expected_asset_suffix: str | None = None
                     f.write(chunk)
     # Do not cleanup here; caller will cleanup after using the files
     return zip_path, tag_name, td
+
+def fetch_file_locally(path: str):
+    base_path = Path(path)
+    if not base_path.exists():
+        raise FileNotFoundError(path)
+    with open(base_path, 'r') as f:
+        return f.read() 
+
+def fetch_folder_locally(path: str):
+    base_path = Path(path)
+    if not base_path.exists():
+        raise FileNotFoundError(path)
+    for root, _, files in os.walk(path):
+        for file in files:
+            full_path = Path(root) / file
+            rel_path = str(full_path.relative_to(base_path))
+            try:
+                with open(full_path, 'r') as f:
+                    content = f.read()
+                    yield rel_path, content
+            except Exception:
+                # Skip files that can't be read (e.g. binary or permissions)
+                continue

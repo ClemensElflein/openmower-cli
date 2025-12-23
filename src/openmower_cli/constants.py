@@ -32,6 +32,8 @@ COMPOSE_FILE: str = get_env("OPENMOWER_COMPOSE_FILE", "/opt/stacks/openmower/com
 DOCKER_BIN: str = get_env("OPENMOWER_DOCKER_BIN", "/usr/bin/docker")
 STACK_NAME: str = get_env("OPENMOWER_STACK_NAME", "openmower")
 DEFAULT_SERVICE: str = get_env("OPENMOWER_DEFAULT_SERVICE", "open_mower_ros")
+CONTAINER_WORKSPACE_PATH: str = get_env("OPENMOWER_CONTAINER_WORKSPACE_PATH", "/opt/open_mower_ros")
+HOST_WORKSPACE_PATH: str = get_env("OPENMOWER_HOST_WORKSPACE_PATH", os.path.expanduser("~/open_mower_ros"))
 
 # GitHub repo for self-update and update checks
 DEFAULT_GH_REPO: str = get_env("OPENMOWER_CLI_REPO", "ClemensElflein/openmower-cli")
