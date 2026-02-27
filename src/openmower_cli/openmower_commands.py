@@ -161,7 +161,7 @@ def enable_bootloader_developer_mode(
         "-i",
         "eth0",
         "set_dev_mode",
-        "true" if enable else "false",
+        "--enable" if enable else "--disable",
     ]
     try:
         run(cmd)
