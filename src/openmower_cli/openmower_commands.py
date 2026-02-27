@@ -142,6 +142,36 @@ def update_firmware(
         except Exception:
             pass
 
+@openmower_app.command("enable-bootloader-developer-mode")
+def enable_bootloader_developer_mode(
+    enable: bool = typer.Argument(..., help="Enable (true) or disable (false) bootloader developer mode."),
+):
+    """Enable or disable bootloader developer mode."""
+    # Fetch the latest docker image
+    from openmower_cli.constants import DOCKER_BIN
+    run([DOCKER_BIN, "pull", "ghcr.io/xtech/fw-xcore-boot:latest"])
+
+    cmd = [
+        DOCKER_BIN,
+        "run",
+        "--rm",
+        "-it",
+        "--network=host",
+        "ghcr.io/xtech/fw-xcore-boot:latest",
+        "-i",
+        "eth0",
+        "set_dev_mode",
+        "true" if enable else "false",
+    ]
+    try:
+        run(cmd)
+    except typer.Exit:
+        # run already emitted messages; re-raise
+        error("Error setting bootloader developer mode.")
+        raise
+
+    success(f"Bootloader developer mode set to {'enabled' if enable else 'disabled'}.")
+
 def prepare_openocd_config():
     # Ensure xcore.cfg is downloaded and cached
     if not XCORE_CONFIG_FILE.exists():
