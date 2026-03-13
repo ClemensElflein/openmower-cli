@@ -200,7 +200,7 @@ def fetch_file_locally(path: str):
     if not base_path.exists():
         raise FileNotFoundError(path)
     with open(base_path, 'r') as f:
-        return f.read() 
+        return f.read()
 
 def fetch_folder_locally(path: str):
     base_path = Path(path)

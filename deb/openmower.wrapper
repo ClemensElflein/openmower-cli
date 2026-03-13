@@ -1,0 +1,2 @@
+#!/bin/bash
+exec env PYTHONPATH=/opt/openmower-cli /opt/openmower-cli/.venv/bin/python -m openmower_cli "$@"

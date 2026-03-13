@@ -1,0 +1,18 @@
+#!/bin/bash
+set -euo pipefail
+
+APP_DIR="/opt/openmower-cli"
+
+case "$1" in
+    purge|remove)
+        rm -rf "${APP_DIR}"
+
+        # Remove installed files from shared directories
+        rm -f /usr/local/bin/openmower
+        rm -f /lib/systemd/system/openmower.service
+
+        systemctl daemon-reload
+        ;;
+esac
+
+exit 0

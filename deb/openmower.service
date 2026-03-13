@@ -1,0 +1,16 @@
+[Unit]
+Description=OpenMower CLI
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=openmower
+Group=openmower
+#EnvironmentFile=/opt/openmower-cli/.env
+ExecStart=/usr/local/bin/openmower service
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
