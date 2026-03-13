@@ -31,34 +31,24 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-      - uses: actions/setup-python@v5
-      - uses: pre-commit/action@v3.0.1
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
       - name: Compute version
         id: version
         run: |
           # If this run is for a tag (refs/tags/...), compute a cleaned version;
           # otherwise set a safe default version for non-tag pushes.
           if [[ "${GITHUB_REF:-}" =~ ^refs/tags/ ]]; then
-            echo "VERSION=$(git describe --tags || git describe --always || echo "v0.0.0")" >> $GITHUB_OUTPUT
+            RAW=$(git describe --tags || git describe --always || echo "0.0.0")
+            echo "VERSION=${RAW#v}" >> $GITHUB_OUTPUT
           else
             echo "VERSION=0.0.0" >> $GITHUB_OUTPUT
           fi
       - name: Build
-        uses: docker/build-push-action@v6
-        with:
-          push: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          outputs: type=local,dest=./artifacts
-          build-args: |
-            APP_VERSION=${{ steps.version.outputs.VERSION }}
+        run: ./build.sh ${{ steps.version.outputs.VERSION }}
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: openmower-cli
-          path: artifacts/
+          path: build/*.deb
   tagged-release:
     runs-on: ubuntu-latest
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
@@ -69,10 +59,8 @@ jobs:
         with:
           name: openmower-cli
           path: artifacts
-      - name: Compress release directory into a versioned ZIP file
-        run: cd artifacts && zip -r "../openmower-cli-${{ github.ref_name }}.zip" .
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           prerelease: false
-          files: "openmower-cli-${{ github.ref_name }}.zip"
+          files: "artifacts/*.deb"

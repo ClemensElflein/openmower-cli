@@ -1,0 +1,11 @@
+Package: openmower-cli
+Version: __VERSION__
+Section: utils
+Priority: optional
+Architecture: all
+Depends: python3 (>= 3.10), python3-venv
+Maintainer: Demo User <demo@example.com>
+Description: OpenMower CLI - does the thing
+  A short description of what the OpenMower CLI does.
+  This package installs a Python application in a virtual environment
+  and provides a systemd service.

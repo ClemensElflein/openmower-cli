@@ -1,0 +1,14 @@
+#!/bin/bash
+set -euo pipefail
+
+case "$1" in
+    remove|upgrade)
+        # Stop and disable the service
+        if systemctl is-active --quiet openmower.service; then
+            systemctl stop openmower.service
+        fi
+        systemctl disable openmower.service 2>/dev/null || true
+        ;;
+esac
+
+exit 0
