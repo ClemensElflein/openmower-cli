@@ -84,10 +84,10 @@ Notes:
 ### Self-update (zipapp distribution)
 If you run the zipapp build (a single-file `openmower` executable), you can self-update from GitHub releases:
 ```bash
-openmower self-update                  # update to latest release
-openmower self-update -v v1.2.3        # update to specific tag
-openmower self-update --repo owner/repo # override repo (defaults to ClemensElflein/openmower-cli)
-openmower self-update --dry-run        # show what would be done
+openmower update-self                  # update to latest release
+openmower update-self -v v1.2.3        # update to specific tag
+openmower update-self --repo owner/repo # override repo (defaults to ClemensElflein/openmower-cli)
+openmower update-self --dry-run        # show what would be done
 ```
 The command replaces the currently running zipapp with the downloaded version atomically.
 
