@@ -91,6 +91,13 @@ openmower update-self --dry-run        # show what would be done
 ```
 The command replaces the currently running zipapp with the downloaded version atomically.
 
+### Update firmware
+```bash
+openmower update-firmware                    # update firmware to latest release
+openmower update-firmware --from-pr 37       # update firmware to specific PR
+openmower update-firmware --repo owner/repo  # override repo
+```
+
 ## Development
 Clone and install in editable mode:
 ```bash

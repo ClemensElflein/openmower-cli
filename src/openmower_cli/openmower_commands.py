@@ -9,7 +9,7 @@ import typer
 import requests
 
 from openmower_cli.console import info, error, success, message
-from openmower_cli.constants import FW_BIN_NAME, get_env, XCORE_CONFIG_FILE, BOOTLOADER_BIN_NAME
+from openmower_cli.constants import FW_BIN_NAME, FW_REPO, get_env, XCORE_CONFIG_FILE, BOOTLOADER_BIN_NAME
 from openmower_cli.helpers import fetch_github_release_zip, run
 from openmower_cli.constants import ESC_DEFAULT_PORT, GPS_DEFAULT_PORT, GPS_XCORE_PORT
 
@@ -42,7 +42,12 @@ def update_firmware(
         None,
         "--from-pr",
         help="Download firmware built for a specific pull request number.",
-    )
+    ),
+    repo: str = typer.Option(
+        FW_REPO,
+        "--repo",
+        help="GitHub repo slug 'owner/name' to fetch firmware releases from.",
+    ),
 ):
     """Update mower firmware to the latest release from fw-openmower-v2.
 
@@ -56,9 +61,6 @@ def update_firmware(
     if not firmware:
         error("Environment variable FIRMWARE is not set. Please set FIRMWARE to your firmware identifier and retry.")
         raise typer.Exit(code=2)
-
-    from openmower_cli.constants import FW_REPO
-    repo = FW_REPO
 
     # Decide source of firmware
     if from_pr is not None:
