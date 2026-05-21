@@ -42,13 +42,26 @@ def update_firmware(
         None,
         "--from-pr",
         help="Download firmware built for a specific pull request number.",
-    )
+    ),
+    repo: Optional[str] = typer.Option(
+        None,
+        "--repo",
+        "-r",
+        help="GitHub repository in 'owner/name' form (defaults to OPENMOWER_FW_REPO env or 'xtech/fw-openmower-v2').",
+    ),
+    tag: Optional[str] = typer.Option(
+        None,
+        "--tag",
+        "-t",
+        help="Release tag to install (e.g. 'v0.4.2'). Defaults to the latest release.",
+    ),
 ):
     """Update mower firmware to the latest release from fw-openmower-v2.
 
     Steps:
     - Check FIRMWARE env variable is set
-    - Download latest firmware release zip from GitHub (default) or from PR API when --from-pr is set
+    - Download a firmware release zip from GitHub (default repo or --repo, latest or --tag),
+      or from the PR API when --from-pr is set
     - Extract into a temp folder and locate FIRMWARE/firmware.bin
     - Upload via docker to the mower's xcore boot tool
     """
@@ -57,8 +70,12 @@ def update_firmware(
         error("Environment variable FIRMWARE is not set. Please set FIRMWARE to your firmware identifier and retry.")
         raise typer.Exit(code=2)
 
+    if from_pr is not None and (repo is not None or tag is not None):
+        error("--from-pr cannot be combined with --repo/--tag.")
+        raise typer.Exit(code=2)
+
     from openmower_cli.constants import FW_REPO
-    repo = FW_REPO
+    selected_repo = repo or FW_REPO
 
     # Decide source of firmware
     if from_pr is not None:
@@ -77,15 +94,15 @@ def update_firmware(
                     for chunk in resp.iter_content(chunk_size=1024 * 256):
                         if chunk:
                             f.write(chunk)
-            tag = f"PR #{from_pr}"
+            resolved_tag = f"PR #{from_pr}"
             tmp_handle = td
         except Exception as e:
             error(f"Failed to fetch PR firmware")
             raise typer.Exit(code=1)
     else:
-        info("Fetching latest firmware release from GitHub ...")
+        info(f"Fetching firmware release {tag or 'latest'} from {selected_repo} ...")
         try:
-            zip_path, tag, tmp_handle = fetch_github_release_zip(repo, expected_asset_suffix=None, tag=None)
+            zip_path, resolved_tag, tmp_handle = fetch_github_release_zip(selected_repo, expected_asset_suffix=None, tag=tag)
         except Exception as e:
             error(f"Failed to fetch firmware release: {e}")
             raise typer.Exit(code=1)
@@ -134,7 +151,7 @@ def update_firmware(
             error("Error uploading firmware.")
             raise
 
-        success(f"Firmware upload finished (release {tag or 'latest'}).")
+        success(f"Firmware upload finished (release {resolved_tag or 'latest'}).")
     finally:
         # Ensure temporary download directory is removed
         try:
