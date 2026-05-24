@@ -54,3 +54,6 @@ XCORE_CONFIG_FILE: Path = Path(os.path.expanduser("~/.config/openmower-cli/xcore
 # Default ports for exposing xESC and IMU
 ESC_DEFAULT_PORT = 65102
 GPS_DEFAULT_PORT = 2000
+
+# GPS raw-passthrough TCP port on the xCore (fw-openmower-v2: DebugTCPInterface, gps_service.hpp:50)
+GPS_XCORE_PORT = 10000

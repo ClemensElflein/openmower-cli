@@ -11,7 +11,7 @@ import requests
 from openmower_cli.console import info, error, success, message
 from openmower_cli.constants import FW_BIN_NAME, get_env, XCORE_CONFIG_FILE, BOOTLOADER_BIN_NAME
 from openmower_cli.helpers import fetch_github_release_zip, run
-from openmower_cli.constants import ESC_DEFAULT_PORT, GPS_DEFAULT_PORT
+from openmower_cli.constants import ESC_DEFAULT_PORT, GPS_DEFAULT_PORT, GPS_XCORE_PORT
 
 openmower_app = typer.Typer(help="OpenMower Commands")
 
@@ -312,8 +312,10 @@ def serial_bridge(
 
 
 @openmower_app.command("expose-gps")
-def expose_gps():
-    f"""Expose the GPS device over TCP (port {GPS_DEFAULT_PORT})."""
-    info("You can now run u-center and connect to port 2000")
-    code = _run_socat(target_ip="172.16.78.150", target_port=2000, port=GPS_DEFAULT_PORT)
+def expose_gps(
+    port: int = typer.Option(GPS_DEFAULT_PORT, "--port", "-p", help=f"TCP port to listen on (default: {GPS_DEFAULT_PORT})"),
+):
+    """Expose the xCore GPS raw-passthrough over TCP so u-center can connect."""
+    info(f"You can now run u-center and connect to port {port}")
+    code = _run_socat(target_ip="172.16.78.150", target_port=GPS_XCORE_PORT, port=port)
     raise typer.Exit(code=code)
