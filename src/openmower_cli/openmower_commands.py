@@ -42,16 +42,58 @@ def update_firmware(
         None,
         "--from-pr",
         help="Download firmware built for a specific pull request number.",
-    )
+    ),
+    firmware_file: Optional[Path] = typer.Option(
+        None,
+        "--file",
+        "-f",
+        help="Flash a local firmware .bin file instead of downloading one.",
+    ),
 ):
     """Update mower firmware to the latest release from fw-openmower-v2.
 
     Steps:
-    - Check FIRMWARE env variable is set
-    - Download latest firmware release zip from GitHub (default) or from PR API when --from-pr is set
-    - Extract into a temp folder and locate FIRMWARE/firmware.bin
+    - Check FIRMWARE env variable is set (unless --file is given)
+    - Download latest firmware release zip from GitHub (default), from PR API
+      when --from-pr is set, or use a local .bin file when --file is given
+    - Extract into a temp folder and locate FIRMWARE/firmware.bin (skipped when --file is given)
     - Upload via docker to the mower's xcore boot tool
     """
+    if firmware_file is not None and from_pr is not None:
+        error("--file and --from-pr cannot be used together.")
+        raise typer.Exit(code=2)
+
+    if firmware_file is not None:
+        if not firmware_file.exists() or not firmware_file.is_file():
+            error(f"Firmware file not found: {firmware_file}")
+            raise typer.Exit(code=2)
+
+        message(f"Using local firmware file: {firmware_file}")
+        fw_dir = str(firmware_file.parent.resolve())
+        fw_name = firmware_file.name
+
+        from openmower_cli.constants import DOCKER_BIN
+        message("Uploading firmware via docker ...")
+        run([DOCKER_BIN, "pull", "ghcr.io/xtech/fw-xcore-boot:latest"])
+        cmd = [
+            DOCKER_BIN,
+            "run",
+            "--rm",
+            "-it",
+            "--network=host",
+            f"-v{fw_dir}:/workdir",
+            "ghcr.io/xtech/fw-xcore-boot:latest",
+            "-i", "eth0", "upload", f"/workdir/{fw_name}",
+        ]
+        try:
+            run(cmd)
+        except typer.Exit:
+            error("Error uploading firmware.")
+            raise
+
+        success(f"Firmware upload finished ({firmware_file}).")
+        return
+
     firmware = get_env("FIRMWARE")
     if not firmware:
         error("Environment variable FIRMWARE is not set. Please set FIRMWARE to your firmware identifier and retry.")
