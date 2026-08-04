@@ -82,7 +82,7 @@ def update_firmware(
         error("--file, --from-pr and --from-branch cannot be used together.")
         raise typer.Exit(code=2)
 
-    if firmware_file is None and from_pr is None and from_branch is None:
+    if firmware_file is None and from_pr is None and from_branch is None and repo is None and tag is None:
         version = get_env("VERSION")
         if version and version != "latest":
             from_branch = "main" if version == "edge" else version
