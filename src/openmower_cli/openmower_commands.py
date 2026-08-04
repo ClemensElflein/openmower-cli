@@ -72,8 +72,8 @@ def update_firmware(
     if firmware_file is None and from_pr is None and from_branch is None:
         version = get_env("VERSION")
         if version and version != "latest":
-            from_branch = version
-            info(f"VERSION is set to '{version}' (not 'latest') — installing firmware from branch '{version}' instead of the latest release.")
+            from_branch = "main" if version == "edge" else version
+            info(f"VERSION is set to '{version}' (not 'latest') — installing firmware from branch '{from_branch}' instead of the latest release.")
 
     if firmware_file is not None:
         if not firmware_file.exists() or not firmware_file.is_file():
