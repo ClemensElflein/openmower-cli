@@ -43,6 +43,11 @@ def update_firmware(
         "--from-pr",
         help="Download firmware built for a specific pull request number.",
     ),
+    from_branch: Optional[str] = typer.Option(
+        None,
+        "--from-branch",
+        help="Download firmware built from the latest successful build on a branch.",
+    ),
     firmware_file: Optional[Path] = typer.Option(
         None,
         "--file",
@@ -55,12 +60,13 @@ def update_firmware(
     Steps:
     - Check FIRMWARE env variable is set (unless --file is given)
     - Download latest firmware release zip from GitHub (default), from PR API
-      when --from-pr is set, or use a local .bin file when --file is given
+      when --from-pr is set, from a branch's latest build when --from-branch is
+      set, or use a local .bin file when --file is given
     - Extract into a temp folder and locate FIRMWARE/firmware.bin (skipped when --file is given)
     - Upload via docker to the mower's xcore boot tool
     """
-    if firmware_file is not None and from_pr is not None:
-        error("--file and --from-pr cannot be used together.")
+    if sum(x is not None for x in (firmware_file, from_pr, from_branch)) > 1:
+        error("--file, --from-pr and --from-branch cannot be used together.")
         raise typer.Exit(code=2)
 
     if firmware_file is not None:
@@ -123,6 +129,27 @@ def update_firmware(
             tmp_handle = td
         except Exception as e:
             error(f"Failed to fetch PR firmware")
+            raise typer.Exit(code=1)
+    elif from_branch is not None:
+        url = f"https://api.openmower.de/v1/firmware/from-branch?branch={from_branch}"
+        info(f"Fetching firmware from branch '{from_branch}' ...")
+        try:
+            td = tempfile.TemporaryDirectory()
+            tmpdir = Path(td.name)
+            zip_path = tmpdir / "firmware.zip"
+            with requests.get(url, stream=True, timeout=300) as resp:
+                if resp.status_code != 200:
+                    td.cleanup()
+                    error(f"HTTP Error: {resp.status_code}")
+                    raise typer.Exit(code=1)
+                with open(zip_path, "wb") as f:
+                    for chunk in resp.iter_content(chunk_size=1024 * 256):
+                        if chunk:
+                            f.write(chunk)
+            tag = f"branch '{from_branch}'"
+            tmp_handle = td
+        except Exception as e:
+            error(f"Failed to fetch branch firmware")
             raise typer.Exit(code=1)
     else:
         info("Fetching latest firmware release from GitHub ...")
