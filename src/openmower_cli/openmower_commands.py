@@ -169,7 +169,7 @@ def update_firmware(
                     for chunk in resp.iter_content(chunk_size=1024 * 256):
                         if chunk:
                             f.write(chunk)
-            tag = f"branch '{from_branch}'"
+            resolved_tag = f"branch '{from_branch}'"
             tmp_handle = td
         except Exception as e:
             error(f"Failed to fetch branch firmware")
