@@ -1,6 +1,7 @@
 import hashlib
 import os
 import stat
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -8,13 +9,15 @@ from typing import List, Optional
 
 import typer
 
-from openmower_cli.console import info, error, success, message
+from openmower_cli.console import info, warn, error, success, message
 from openmower_cli.helpers import run, read_settings, write_settings
 
 openmower_common_app = typer.Typer(help="OpenMower (Legacy) Commands", no_args_is_help=True)
 
 from openmower_cli.constants import DEFAULT_GH_REPO, COMPOSE_FILE, DOCKER_BIN, DEFAULT_SERVICE, STACK_NAME, ENV_PATH, \
-    MOWER_PARAMS_FILE
+    MOWER_PARAMS_FILE, IS_NEW_OS
+
+ROS_SERVICE_UNIT = "openmower.service"
 
 
 def _compose_base_args() -> List[str]:
@@ -22,33 +25,87 @@ def _compose_base_args() -> List[str]:
     return [DOCKER_BIN, "compose", "-f", COMPOSE_FILE]
 
 
+# --- ROS primitives (new OS only -- no-ops on the old OS, where open_mower_ros IS
+# the compose service the _aux_* primitives below already manage) -------------------
+
+def _ros_start():
+    if not IS_NEW_OS:
+        return
+    run(["systemctl", "start", ROS_SERVICE_UNIT])
+    # Type=simple + ExecCondition=: `systemctl start` returns as soon as the unit is
+    # forked -- or the job is skipped (exit 0, NOT a failure) if ExecCondition rejects
+    # it, e.g. no mower_params.yaml yet. Check afterward rather than trusting the exit
+    # code, and surface openmower-check-config's own (already correct, specific) error
+    # instead of a generic "didn't start".
+    if subprocess.run(["systemctl", "is-active", "--quiet", ROS_SERVICE_UNIT]).returncode != 0:
+        warn(f"{ROS_SERVICE_UNIT} did not start:")
+        subprocess.run(["/usr/bin/openmower-check-config"])
+
+
+def _ros_stop():
+    if IS_NEW_OS:
+        run(["systemctl", "stop", ROS_SERVICE_UNIT])
+
+
+def _ros_status():
+    if IS_NEW_OS:
+        # Not helpers.run(): `systemctl status` on an inactive unit (the default --
+        # openmower.service ships disabled, auto-start is deliberately off) returns
+        # LSB exit code 3, and run() raises typer.Exit on any nonzero code, which
+        # would abort before _aux_status() ever runs on the single most common
+        # invocation (checking status before starting anything).
+        subprocess.run(["systemctl", "status", ROS_SERVICE_UNIT])
+
+
+# --- Aux stack primitives (both OSes -- Mosquitto/OpenMowerApp on the new OS,
+# the whole stack including open_mower_ros on the old OS) ---------------------------
+
+def _aux_start():
+    info(f"Starting compose stack from {COMPOSE_FILE} ...")
+    run(_compose_base_args() + ["up", "-d"])
+
+
+def _aux_stop():
+    info(f"Stopping compose stack from {COMPOSE_FILE} ...")
+    run(_compose_base_args() + ["down"])
+
+
+def _aux_status():
+    run(_compose_base_args() + ["ps"])
+
+
 @openmower_common_app.command()
 def pull():
     """Pull image(s) for the stack."""
-    stop()
+    # Aux images only, deliberately -- NOT _ros_start()/_ros_stop(). On the new OS
+    # open_mower_ros isn't docker-pulled at all (vendored into the OS image, updated
+    # via RAUC OTA instead), so restarting it here would just interrupt a live mow for
+    # no reason. On the old OS this is exactly the previous stop()/pull/prune/start()
+    # sequence (open_mower_ros IS one of the images _aux_stop()/_aux_start() manage).
+    _aux_stop()
     info(f"Pulling compose stack images from {COMPOSE_FILE} ...")
     args = _compose_base_args() + ["pull"]
     run(args)
     # Remove unused images
     run([DOCKER_BIN, "system", "prune", "--force"])
-    start()
+    _aux_start()
+    if IS_NEW_OS:
+        info(f"Note: open_mower_ros itself updates via RAUC OTA (openmower-updater), not `pull`.")
 
 
 
 @openmower_common_app.command()
 def start():
-    """Start the stack (docker compose up -d)."""
-    info(f"Starting compose stack from {COMPOSE_FILE} ...")
-    args = _compose_base_args() + ["up", "-d"]
-    run(args)
+    """Start the stack (systemd service + docker compose up -d on the new OS; docker compose up -d only on the old OS)."""
+    _ros_start()
+    _aux_start()
 
 
 @openmower_common_app.command()
 def stop():
     """Stop the stack."""
-    info(f"Stopping compose stack from {COMPOSE_FILE} ...")
-    args = _compose_base_args() + ["down"]
-    run(args)
+    _ros_stop()
+    _aux_stop()
 
 
 @openmower_common_app.command()
@@ -59,16 +116,22 @@ def restart():
 
 @openmower_common_app.command("status")
 def status_cmd():
-    """Show stack status (docker compose ps)."""
-    args = _compose_base_args() + ["ps"]
-    # status in bash did not exec; we'll mirror by running and returning
-    run(args)
+    """Show stack status (systemd + docker compose ps on the new OS; docker compose ps only on the old OS)."""
+    _ros_status()
+    _aux_status()
 
 
 @openmower_common_app.command("logs")
 def logs_cmd(
         services: List[str] = typer.Argument(None, help="Optional service names to filter logs", show_default=False)):
     """Tail container logs. Defaults to -f --tail 100 when no service provided."""
+    if not services and IS_NEW_OS:
+        # Bare invocation means "the ROS stack" (same convention as shell/exec's
+        # DEFAULT_SERVICE) -- open_mower_ros isn't a compose service here, its logs
+        # are in the journal instead. Named services (mosquitto/openmowerapp) are
+        # still real compose services, unchanged below.
+        run(["journalctl", "-u", ROS_SERVICE_UNIT, "-f", "-n", "100"])
+        return
     args = _compose_base_args() + ["logs"]
     if not services:
         args += ["-f", "--tail", "100"]
@@ -94,6 +157,20 @@ def shell_cmd(
     """
     service = DEFAULT_SERVICE if len(ctx.args) == 0 else ctx.args[0]
     cmd = ctx.args[1:] if len(ctx.args) > 1 else None
+
+    # open_mower_ros isn't a compose service on the new OS -- redirect both the
+    # no-args default and someone explicitly naming it out of habit (DEFAULT_SERVICE
+    # itself, or "ros") to openmower-shell, the host script that actually knows how to
+    # get into the vendored ROS tree (systemd-nspawn with careful device detection --
+    # not replicated here). Every other service name (mosquitto/openmowerapp) falls
+    # through unchanged below; those remain real compose services on the new OS too.
+    if IS_NEW_OS and service in (DEFAULT_SERVICE, "ros"):
+        if cmd:
+            info(f"Running `{' '.join(cmd)}` in the ROS container")
+        else:
+            info("Starting Shell in the ROS container")
+        run(["/usr/bin/openmower-shell"] + (cmd or []))
+        return
 
     # If command provided, do simple exec
     if cmd:

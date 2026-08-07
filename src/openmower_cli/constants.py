@@ -4,8 +4,36 @@ from dotenv import dotenv_values
 
 from openmower_cli.console import warn, error, info, success, message
 
+
+def _detect_new_os() -> bool:
+    """True on the Buildroot-based OS (open_mower_ros runs via systemd/nspawn, not
+    docker-compose), False on the old pi-gen-based OpenMowerOS and anything else.
+    Defaults to False on any read failure -- this is the single switch that keeps
+    old-OS behavior byte-for-byte unchanged, so it must fail safe toward "old"."""
+    try:
+        with open("/etc/os-release") as f:
+            return any(line.strip() == "ID=openmower-os" for line in f)
+    except Exception:
+        return False
+
+
+# Baked into /etc/os-release at build time on the new OS (external/board/openmower-cm4/
+# post-build.sh); the old OS never sets/overrides ID (stays raspbian/debian). A single
+# atomic signal rather than per-feature capability probes (e.g. "does openmower-shell
+# exist") avoids inconsistent branching within one invocation on a half-upgraded system,
+# and reflects the running OS rather than this CLI's own version -- it self-updates
+# independently via `update-self`, so it can't assume its own build matches the OS it's on.
+IS_NEW_OS: bool = _detect_new_os()
+
 # Environment / configuration file path (do NOT load into os.environ)
-ENV_PATH: str = os.environ.get("OPENMOWER_ENV_PATH", "/opt/stacks/openmower/.env")
+# On the new OS, /opt/stacks/openmower/.env deliberately does NOT configure
+# open_mower_ros (that runs via systemd/nspawn, not this compose stack) -- its own
+# header comment says so. The real per-device config lives at
+# /data/openmower/openmower.conf instead.
+ENV_PATH: str = os.environ.get(
+    "OPENMOWER_ENV_PATH",
+    "/data/openmower/openmower.conf" if IS_NEW_OS else "/opt/stacks/openmower/.env",
+)
 
 # Cache of values parsed from .env (not injected into process environment)
 try:
@@ -42,8 +70,14 @@ FW_BIN_NAME: str | None = get_env("OPENMOWER_FW_CUSTOM_BIN_NAME")
 BOOTLOADER_REPO: str = get_env("XCORE_BOOTLOADER_REPO", "xtech/fw-xcore-boot")
 BOOTLOADER_BIN_NAME: str | None = get_env("XCORE_BOOTLOADER_CUSTOM_BIN_NAME")
 
-# Mower configuration file path
-MOWER_PARAMS_FILE: Path = Path(os.path.expanduser("~/params/mower_params.yaml"))
+# Mower configuration file path. PARAMS_PATH fallback mirrors
+# openmower-check-config's own PARAMS_PATH="${PARAMS_PATH:-/data/openmower/params}"
+# on the new OS, so this stays in sync with the actual service if overridden.
+MOWER_PARAMS_FILE: Path = (
+    Path(get_env("PARAMS_PATH", "/data/openmower/params")) / "mower_params.yaml"
+    if IS_NEW_OS
+    else Path(os.path.expanduser("~/params/mower_params.yaml"))
+)
 
 # Paths for internal state/cache files
 LAST_CHECK_FILE: Path = Path(os.path.expanduser("~/.config/openmower-cli/last_update_check.json"))
