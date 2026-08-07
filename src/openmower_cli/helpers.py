@@ -98,8 +98,8 @@ def write_settings(data: dict) -> None:
         SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(SETTINGS_FILE, "w") as f:
             json.dump(data, f)
-    except Exception:
-        pass
+    except Exception as e:
+        warn(f"Failed to save settings to {SETTINGS_FILE}: {e}")
 
 
 def check_for_update_if_needed(current_version: str, repo: str = DEFAULT_GH_REPO, max_age_days: int = 7) -> None:
