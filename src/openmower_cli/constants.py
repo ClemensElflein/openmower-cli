@@ -81,10 +81,17 @@ MOWER_PARAMS_FILE: Path = (
     else Path(os.path.expanduser("~/params/mower_params.yaml"))
 )
 
-# Paths for internal state/cache files
-LAST_CHECK_FILE: Path = Path(os.path.expanduser("~/.config/openmower-cli/last_update_check.json"))
-SETTINGS_FILE: Path = Path(os.path.expanduser("~/.config/openmower-cli/settings.json"))
-XCORE_CONFIG_FILE: Path = Path(os.path.expanduser("~/.config/openmower-cli/xcore.cfg"))
+# Paths for internal state/cache files. On OSv3 the root filesystem (and $HOME under
+# it) is read-only -- only /data persists across boots -- so state lives there instead
+# of the usual ~/.config on the old OS.
+_STATE_DIR: Path = (
+    Path("/data/openmower/cli")
+    if IS_NEW_OS
+    else Path(os.path.expanduser("~/.config/openmower-cli"))
+)
+LAST_CHECK_FILE: Path = _STATE_DIR / "last_update_check.json"
+SETTINGS_FILE: Path = _STATE_DIR / "settings.json"
+XCORE_CONFIG_FILE: Path = _STATE_DIR / "xcore.cfg"
 
 
 # Default ports for exposing xESC and IMU
