@@ -62,34 +62,6 @@ def _ros_status():
 # --- Aux stack primitives (both OSes -- Mosquitto/OpenMowerApp on the new OS,
 # the whole stack including open_mower_ros on the old OS) ---------------------------
 
-def _read_machine_id() -> str:
-    """Stable per-device id for OS update fleet tracking. Persisted across OS
-    updates by openmower-persist-machine-id/openmower-machine-id.service
-    (external/board/openmower-cm4/rootfs-overlay in the os repo), unlike a
-    freshly-generated systemd default that would reset on reflash."""
-    try:
-        return Path("/etc/machine-id").read_text().strip() or "unknown"
-    except Exception:
-        return "unknown"
-
-
-def _read_os_version() -> str:
-    """Currently booted OS build version, straight from the source of truth.
-    VERSION_ID is baked into /etc/os-release at image build time (os repo:
-    external/board/openmower-cm4/post-build.sh) and always matches whichever
-    slot is actually running -- unlike any value the CLI could cache itself,
-    it's correct even after a reflash, a manual bundle install, or a rollback
-    to the other slot."""
-    try:
-        with open("/etc/os-release") as f:
-            for line in f:
-                if line.startswith("VERSION_ID="):
-                    return line.partition("=")[2].strip().strip('"') or "unknown"
-    except Exception:
-        pass
-    return "unknown"
-
-
 def _aux_start():
     info(f"Starting compose stack from {COMPOSE_FILE} ...")
     run(_compose_base_args() + ["up", "-d"])
@@ -317,6 +289,62 @@ def configure(
         info(f"No changes detected. Stack not restarted.")
 
 
+def _read_machine_id() -> str:
+    """Stable per-device id for OS update fleet tracking. Persisted across OS
+    updates by openmower-persist-machine-id/openmower-machine-id.service
+    (external/board/openmower-cm4/rootfs-overlay in the os repo), unlike a
+    freshly-generated systemd default that would reset on reflash."""
+    try:
+        return Path("/etc/machine-id").read_text().strip() or "unknown"
+    except Exception:
+        return "unknown"
+
+
+def _read_os_version() -> str:
+    """Currently booted OS build version, straight from the source of truth.
+    VERSION_ID is baked into /etc/os-release at image build time (os repo:
+    external/board/openmower-cm4/post-build.sh) and always matches whichever
+    slot is actually running -- unlike any value the CLI could cache itself,
+    it's correct even after a reflash, a manual bundle install, or a rollback
+    to the other slot."""
+    try:
+        with open("/etc/os-release") as f:
+            for line in f:
+                if line.startswith("VERSION_ID="):
+                    return line.partition("=")[2].strip().strip('"') or "unknown"
+    except Exception:
+        pass
+    return "unknown"
+
+
+def _print_os_update_lookup_error(r: "requests.Response") -> None:
+    """Render an /os-update error response.
+
+    The server distinguishes three states for --from-pr/--from-branch via a
+    stable `error-props[0]` reason code (see OsUpdateLookupException in the
+    api repo) so we can react appropriately instead of just dumping the HTTP
+    status: no build ever triggered, one still running, or one that failed.
+    """
+    reason = None
+    detail = None
+    try:
+        payload = r.json()
+        detail = payload.get("message")
+        props = payload.get("error-props") or []
+        reason = props[0] if props else None
+    except Exception:
+        pass
+
+    if reason == "no-build":
+        error(detail or "No OS build has been triggered for this PR/branch yet.")
+    elif reason == "build-in-progress":
+        warn(detail or "The OS build is still running. Try again in a few minutes.")
+    elif reason == "build-failed":
+        error(detail or "The OS build failed.")
+    else:
+        error(detail or f"HTTP Error looking up update: {r.status_code}")
+
+
 @openmower_common_app.command("update-os")
 def update_os(
     from_pr: Optional[int] = typer.Option(
@@ -384,7 +412,7 @@ def update_os(
     try:
         r = requests.post("https://api.openmower.de/v1/os-update", json=request_body, timeout=30)
         if r.status_code != 200:
-            error(f"HTTP Error looking up update: {r.status_code}")
+            _print_os_update_lookup_error(r)
             raise typer.Exit(code=1)
         payload = r.json()
     except typer.Exit:
