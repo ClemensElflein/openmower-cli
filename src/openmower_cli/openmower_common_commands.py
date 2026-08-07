@@ -27,7 +27,7 @@ def _compose_base_args() -> List[str]:
     return [DOCKER_BIN, "compose", "-f", COMPOSE_FILE]
 
 
-# --- ROS primitives (new OS only -- no-ops on the old OS, where open_mower_ros IS
+# --- ROS primitives (OSv3 only -- no-ops on the old OS, where open_mower_ros IS
 # the compose service the _aux_* primitives below already manage) -------------------
 
 def _ros_start():
@@ -59,7 +59,7 @@ def _ros_status():
         subprocess.run(["systemctl", "status", ROS_SERVICE_UNIT])
 
 
-# --- Aux stack primitives (both OSes -- Mosquitto/OpenMowerApp on the new OS,
+# --- Aux stack primitives (both OSes -- Mosquitto/OpenMowerApp on OSv3,
 # the whole stack including open_mower_ros on the old OS) ---------------------------
 
 def _aux_start():
@@ -79,7 +79,7 @@ def _aux_status():
 @openmower_common_app.command()
 def pull():
     """Pull image(s) for the stack."""
-    # Aux images only, deliberately -- NOT _ros_start()/_ros_stop(). On the new OS
+    # Aux images only, deliberately -- NOT _ros_start()/_ros_stop(). On OSv3
     # open_mower_ros isn't docker-pulled at all (vendored into the OS image, updated
     # via RAUC OTA instead), so restarting it here would just interrupt a live mow for
     # no reason. On the old OS this is exactly the previous stop()/pull/prune/start()
@@ -98,7 +98,7 @@ def pull():
 
 @openmower_common_app.command()
 def start():
-    """Start the stack (systemd service + docker compose up -d on the new OS; docker compose up -d only on the old OS)."""
+    """Start the stack (systemd service + docker compose up -d on OSv3; docker compose up -d only on the old OS)."""
     _ros_start()
     _aux_start()
 
@@ -118,7 +118,7 @@ def restart():
 
 @openmower_common_app.command("status")
 def status_cmd():
-    """Show stack status (systemd + docker compose ps on the new OS; docker compose ps only on the old OS)."""
+    """Show stack status (systemd + docker compose ps on OSv3; docker compose ps only on the old OS)."""
     _ros_status()
     _aux_status()
 
@@ -160,12 +160,12 @@ def shell_cmd(
     service = DEFAULT_SERVICE if len(ctx.args) == 0 else ctx.args[0]
     cmd = ctx.args[1:] if len(ctx.args) > 1 else None
 
-    # open_mower_ros isn't a compose service on the new OS -- redirect both the
+    # open_mower_ros isn't a compose service on OSv3 -- redirect both the
     # no-args default and someone explicitly naming it out of habit (DEFAULT_SERVICE
     # itself, or "ros") to openmower-shell, the host script that actually knows how to
     # get into the vendored ROS tree (systemd-nspawn with careful device detection --
     # not replicated here). Every other service name (mosquitto/openmowerapp) falls
-    # through unchanged below; those remain real compose services on the new OS too.
+    # through unchanged below; those remain real compose services on OSv3 too.
     if IS_NEW_OS and service in (DEFAULT_SERVICE, "ros"):
         if cmd:
             info(f"Running `{' '.join(cmd)}` in the ROS container")
@@ -338,6 +338,20 @@ def _print_os_update_lookup_error(r: "requests.Response") -> None:
         error(detail)
 
 
+def _tryboot_reboot() -> None:
+    """Reboot into the newly-installed RAUC slot via the Pi's tryboot mechanism
+    (falls back to the previous slot automatically if the new one doesn't come up)."""
+    info("Rebooting into new slot (tryboot) ...")
+    try:
+        os.makedirs("/run/systemd", exist_ok=True)
+        with open("/run/systemd/reboot-param", "w") as f:
+            f.write("0 tryboot")
+    except PermissionError:
+        error("Failed to set tryboot reboot param. Rerun with sudo!")
+        raise typer.Exit(code=1)
+    run(["systemctl", "reboot"])
+
+
 @openmower_common_app.command("update-os")
 def update_os(
     from_pr: Optional[int] = typer.Option(
@@ -356,18 +370,27 @@ def update_os(
         "-t",
         help="Release tag to install (e.g. 'v1.3.0'). Defaults to the latest release.",
     ),
+    from_file: Optional[Path] = typer.Option(
+        None,
+        "--from-file",
+        help="Install a local RAUC bundle (.raucb) instead of downloading one, then tryboot into it.",
+        exists=True,
+        dir_okay=False,
+        readable=True,
+    ),
     reboot: bool = typer.Option(
         False,
         "--reboot",
-        help="Reboot into the new slot (tryboot) immediately after a successful install.",
+        help="Reboot into the new slot (tryboot) immediately after a successful install. Implied by --from-file.",
     ),
 ):
-    """Install an OS update (RAUC bundle carrying open_mower_ros) via api.openmower.de.
+    """Install an OS update (RAUC bundle carrying open_mower_ros) via api.openmower.de,
+    or a local bundle via --from-file.
 
     Steps:
     - Ask api.openmower.de for the bundle location: a PR's latest build (--from-pr),
       a branch's latest build (--from-branch), or a tagged release (--tag, defaults
-      to the latest release)
+      to the latest release) -- or skip the lookup entirely with --from-file
     - Download the bundle (PR/branch builds come wrapped in a GitHub Actions artifact
       zip and must be unzipped first; release bundles are the raw .raucb already)
     - Install via `rauc install`
@@ -375,6 +398,21 @@ def update_os(
     if not IS_NEW_OS:
         error("update-os is only available on the Buildroot-based OpenMower OS.")
         raise typer.Exit(code=1)
+
+    if from_file is not None:
+        if any(x is not None for x in (from_pr, from_branch, tag)):
+            error("--from-file cannot be combined with --from-pr/--from-branch/--tag.")
+            raise typer.Exit(code=2)
+
+        message(f"Installing bundle: {from_file} ...")
+        try:
+            run(["rauc", "install", str(from_file)])
+        except typer.Exit:
+            error("rauc install failed.")
+            raise
+        success(f"OS update installed from {from_file}.")
+        _tryboot_reboot()
+        return
 
     if sum(x is not None for x in (from_pr, from_branch)) > 1:
         error("--from-pr and --from-branch cannot be used together.")
@@ -469,15 +507,7 @@ def update_os(
         success(f"OS update to version {version} installed.")
 
         if reboot:
-            info("Rebooting into new slot (tryboot) ...")
-            try:
-                os.makedirs("/run/systemd", exist_ok=True)
-                with open("/run/systemd/reboot-param", "w") as f:
-                    f.write("0 tryboot")
-            except PermissionError:
-                error("Failed to set tryboot reboot param. Rerun with sudo!")
-                raise typer.Exit(code=1)
-            run(["systemctl", "reboot"])
+            _tryboot_reboot()
         else:
             info("Reboot to switch into the new slot: `systemctl reboot` (or pass --reboot next time).")
     finally:
@@ -487,7 +517,7 @@ def update_os(
             pass
 
 
-@openmower_common_app.command("update-self")
+@openmower_common_app.command("update-self", hidden=IS_NEW_OS)
 def self_update(
         version: Optional[str] = typer.Option(None, "--version", "-v",
                                               help="Update to a specific tag (e.g., v1.2.3). Defaults to the latest release."),
@@ -501,6 +531,10 @@ def self_update(
     This command downloads the latest (or specified) release artifact and replaces the currently running
     zipapp executable with the new version.
     """
+    if IS_NEW_OS:
+        error("update-self is not available on the Buildroot-based OpenMower OS: the CLI ships as part of "
+              "the OS image and updates together with it via `update-os`.")
+        raise typer.Exit(code=1)
 
     exe_path = Path(sys.argv[0]).resolve()
     if not exe_path.exists():
