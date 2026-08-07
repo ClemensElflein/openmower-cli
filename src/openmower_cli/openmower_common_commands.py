@@ -320,29 +320,22 @@ def _read_os_version() -> str:
 def _print_os_update_lookup_error(r: "requests.Response") -> None:
     """Render an /os-update error response.
 
-    The server distinguishes three states for --from-pr/--from-branch via a
-    stable `error-props[0]` reason code (see OsUpdateLookupException in the
-    api repo) so we can react appropriately instead of just dumping the HTTP
-    status: no build ever triggered, one still running, or one that failed.
+    The server already picks a fitting HTTP status and a human-readable message
+    for each case (see OsUpdateLookupException in the api repo: 404 no build
+    triggered yet, 409 build still running, 410 build failed) - just show it, no
+    client-side table mapping a reason code back to wording. 409 is the one
+    transient/retryable case, so it gets a warning instead of an error.
     """
-    reason = None
-    detail = None
     try:
-        payload = r.json()
-        detail = payload.get("message")
-        props = payload.get("error-props") or []
-        reason = props[0] if props else None
+        detail = r.json().get("message")
     except Exception:
-        pass
+        detail = None
+    detail = detail or f"HTTP Error looking up update: {r.status_code}"
 
-    if reason == "no-build":
-        error(detail or "No OS build has been triggered for this PR/branch yet.")
-    elif reason == "build-in-progress":
-        warn(detail or "The OS build is still running. Try again in a few minutes.")
-    elif reason == "build-failed":
-        error(detail or "The OS build failed.")
+    if r.status_code == 409:
+        warn(detail)
     else:
-        error(detail or f"HTTP Error looking up update: {r.status_code}")
+        error(detail)
 
 
 @openmower_common_app.command("update-os")
