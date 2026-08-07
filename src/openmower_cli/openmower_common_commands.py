@@ -62,6 +62,34 @@ def _ros_status():
 # --- Aux stack primitives (both OSes -- Mosquitto/OpenMowerApp on the new OS,
 # the whole stack including open_mower_ros on the old OS) ---------------------------
 
+def _read_machine_id() -> str:
+    """Stable per-device id for OS update fleet tracking. Persisted across OS
+    updates by openmower-persist-machine-id/openmower-machine-id.service
+    (external/board/openmower-cm4/rootfs-overlay in the os repo), unlike a
+    freshly-generated systemd default that would reset on reflash."""
+    try:
+        return Path("/etc/machine-id").read_text().strip() or "unknown"
+    except Exception:
+        return "unknown"
+
+
+def _read_os_version() -> str:
+    """Currently booted OS build version, straight from the source of truth.
+    VERSION_ID is baked into /etc/os-release at image build time (os repo:
+    external/board/openmower-cm4/post-build.sh) and always matches whichever
+    slot is actually running -- unlike any value the CLI could cache itself,
+    it's correct even after a reflash, a manual bundle install, or a rollback
+    to the other slot."""
+    try:
+        with open("/etc/os-release") as f:
+            for line in f:
+                if line.startswith("VERSION_ID="):
+                    return line.partition("=")[2].strip().strip('"') or "unknown"
+    except Exception:
+        pass
+    return "unknown"
+
+
 def _aux_start():
     info(f"Starting compose stack from {COMPOSE_FILE} ...")
     run(_compose_base_args() + ["up", "-d"])
@@ -335,18 +363,26 @@ def update_os(
         raise typer.Exit(code=2)
 
     if from_pr is not None:
-        api_url = f"https://api.openmower.de/v1/os-update/from-pr?pr={from_pr}"
         desc = f"PR #{from_pr}"
     elif from_branch is not None:
-        api_url = f"https://api.openmower.de/v1/os-update/from-branch?branch={from_branch}"
         desc = f"branch '{from_branch}'"
     else:
-        api_url = "https://api.openmower.de/v1/os-update/latest" + (f"?tag={tag}" if tag else "")
         desc = f"release {tag or 'latest'}"
+
+    request_body = {
+        "machine-id": _read_machine_id(),
+        "current-version": _read_os_version(),
+    }
+    if from_pr is not None:
+        request_body["pr"] = from_pr
+    elif from_branch is not None:
+        request_body["branch"] = from_branch
+    elif tag is not None:
+        request_body["tag"] = tag
 
     info(f"Looking up OS update for {desc} ...")
     try:
-        r = requests.get(api_url, timeout=30)
+        r = requests.post("https://api.openmower.de/v1/os-update", json=request_body, timeout=30)
         if r.status_code != 200:
             error(f"HTTP Error looking up update: {r.status_code}")
             raise typer.Exit(code=1)
