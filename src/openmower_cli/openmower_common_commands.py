@@ -3,10 +3,12 @@ import os
 import stat
 import subprocess
 import sys
+import tempfile
 import zipfile
 from pathlib import Path
 from typing import List, Optional
 
+import requests
 import typer
 
 from openmower_cli.console import info, warn, error, success, message
@@ -90,7 +92,7 @@ def pull():
     run([DOCKER_BIN, "system", "prune", "--force"])
     _aux_start()
     if IS_NEW_OS:
-        info(f"Note: open_mower_ros itself updates via RAUC OTA (openmower-updater), not `pull`.")
+        info(f"Note: open_mower_ros itself updates via RAUC OTA (`update-os`), not `pull`.")
 
 
 
@@ -285,6 +287,147 @@ def configure(
         success("Stack restarted with updated environment.")
     else:
         info(f"No changes detected. Stack not restarted.")
+
+
+@openmower_common_app.command("update-os")
+def update_os(
+    from_pr: Optional[int] = typer.Option(
+        None,
+        "--from-pr",
+        help="Install the RAUC bundle built for a specific pull request number.",
+    ),
+    from_branch: Optional[str] = typer.Option(
+        None,
+        "--from-branch",
+        help="Install the RAUC bundle from the latest successful build on a branch.",
+    ),
+    tag: Optional[str] = typer.Option(
+        None,
+        "--tag",
+        "-t",
+        help="Release tag to install (e.g. 'v1.3.0'). Defaults to the latest release.",
+    ),
+    reboot: bool = typer.Option(
+        False,
+        "--reboot",
+        help="Reboot into the new slot (tryboot) immediately after a successful install.",
+    ),
+):
+    """Install an OS update (RAUC bundle carrying open_mower_ros) via api.openmower.de.
+
+    Steps:
+    - Ask api.openmower.de for the bundle location: a PR's latest build (--from-pr),
+      a branch's latest build (--from-branch), or a tagged release (--tag, defaults
+      to the latest release)
+    - Download the bundle (PR/branch builds come wrapped in a GitHub Actions artifact
+      zip and must be unzipped first; release bundles are the raw .raucb already)
+    - Install via `rauc install`
+    """
+    if not IS_NEW_OS:
+        error("update-os is only available on the Buildroot-based OpenMower OS.")
+        raise typer.Exit(code=1)
+
+    if sum(x is not None for x in (from_pr, from_branch)) > 1:
+        error("--from-pr and --from-branch cannot be used together.")
+        raise typer.Exit(code=2)
+    if tag is not None and (from_pr is not None or from_branch is not None):
+        error("--tag cannot be combined with --from-pr/--from-branch.")
+        raise typer.Exit(code=2)
+
+    if from_pr is not None:
+        api_url = f"https://api.openmower.de/v1/os-update/from-pr?pr={from_pr}"
+        desc = f"PR #{from_pr}"
+    elif from_branch is not None:
+        api_url = f"https://api.openmower.de/v1/os-update/from-branch?branch={from_branch}"
+        desc = f"branch '{from_branch}'"
+    else:
+        api_url = "https://api.openmower.de/v1/os-update/latest" + (f"?tag={tag}" if tag else "")
+        desc = f"release {tag or 'latest'}"
+
+    info(f"Looking up OS update for {desc} ...")
+    try:
+        r = requests.get(api_url, timeout=30)
+        if r.status_code != 200:
+            error(f"HTTP Error looking up update: {r.status_code}")
+            raise typer.Exit(code=1)
+        payload = r.json()
+    except typer.Exit:
+        raise
+    except Exception as e:
+        error(f"Failed to look up OS update: {e}")
+        raise typer.Exit(code=1)
+
+    version = payload.get("version")
+    download_url = payload.get("download-url")
+    proxied = payload.get("proxied")
+    if not download_url:
+        error("Update lookup response did not include a download-url.")
+        raise typer.Exit(code=1)
+
+    info(f"Found version {version}. Downloading ...")
+    td = tempfile.TemporaryDirectory()
+    try:
+        tmpdir = Path(td.name)
+        dl_path = tmpdir / "bundle.download"
+        try:
+            with requests.get(download_url, stream=True, timeout=600) as resp:
+                if resp.status_code != 200:
+                    error(f"HTTP Error downloading bundle: {resp.status_code}")
+                    raise typer.Exit(code=1)
+                with open(dl_path, "wb") as f:
+                    for chunk in resp.iter_content(chunk_size=1024 * 256):
+                        if chunk:
+                            f.write(chunk)
+        except typer.Exit:
+            raise
+        except Exception as e:
+            error(f"Failed to download bundle: {e}")
+            raise typer.Exit(code=1)
+
+        if proxied:
+            # PR/branch builds: a GitHub Actions artifact, always a zip wrapper
+            # around the .raucb (and the signed URL we just used is short-lived,
+            # already spent by the download above).
+            message("Extracting bundle from artifact zip ...")
+            try:
+                with zipfile.ZipFile(dl_path) as zf:
+                    zf.extractall(tmpdir)
+            except Exception as e:
+                error(f"Failed to extract bundle archive: {e}")
+                raise typer.Exit(code=1)
+            candidates = sorted(tmpdir.glob("openmower-*.raucb"))
+            if not candidates:
+                error("No .raucb bundle found inside the downloaded artifact.")
+                raise typer.Exit(code=1)
+            bundle_path = candidates[0]
+        else:
+            bundle_path = dl_path
+
+        message(f"Installing bundle: {bundle_path} ...")
+        try:
+            run(["rauc", "install", str(bundle_path)])
+        except typer.Exit:
+            error("rauc install failed.")
+            raise
+        success(f"OS update to version {version} installed.")
+
+        if reboot:
+            info("Rebooting into new slot (tryboot) ...")
+            try:
+                os.makedirs("/run/systemd", exist_ok=True)
+                with open("/run/systemd/reboot-param", "w") as f:
+                    f.write("0 tryboot")
+            except PermissionError:
+                error("Failed to set tryboot reboot param. Rerun with sudo!")
+                raise typer.Exit(code=1)
+            run(["systemctl", "reboot"])
+        else:
+            info("Reboot to switch into the new slot: `systemctl reboot` (or pass --reboot next time).")
+    finally:
+        try:
+            td.cleanup()
+        except Exception:
+            pass
 
 
 @openmower_common_app.command("update-self")
