@@ -9,7 +9,7 @@ import requests
 import typer
 
 from openmower_cli.console import error, warn, info
-from openmower_cli.constants import LAST_CHECK_FILE, DEFAULT_GH_REPO, SETTINGS_FILE
+from openmower_cli.constants import LAST_CHECK_FILE, DEFAULT_GH_REPO, SETTINGS_FILE, IS_NEW_OS
 
 
 def run(cmd: List[str]) -> None:
@@ -122,7 +122,11 @@ def check_for_update_if_needed(current_version: str, repo: str = DEFAULT_GH_REPO
             rel = r.json()
             tag = rel.get("tag_name") or ""
             if tag and _is_newer(tag, current_version):
-                warn(f"A new version {tag} of openmower-cli is available. Run 'openmower update-self' to update.")
+                if IS_NEW_OS:
+                    warn(f"A new version {tag} of openmower-cli is available. It ships with the next "
+                         f"OpenMower OS update ('openmower update-os').")
+                else:
+                    warn(f"A new version {tag} of openmower-cli is available. Run 'openmower update-self' to update.")
         # Regardless of outcome, update timestamp
         _write_last_check_ts(now)
     except Exception:

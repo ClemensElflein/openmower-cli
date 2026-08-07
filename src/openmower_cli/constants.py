@@ -17,16 +17,18 @@ def _detect_new_os() -> bool:
         return False
 
 
-# Baked into /etc/os-release at build time on the new OS (external/board/openmower-cm4/
+# Baked into /etc/os-release at build time on OSv3 (external/board/openmower-cm4/
 # post-build.sh); the old OS never sets/overrides ID (stays raspbian/debian). A single
 # atomic signal rather than per-feature capability probes (e.g. "does openmower-shell
 # exist") avoids inconsistent branching within one invocation on a half-upgraded system,
-# and reflects the running OS rather than this CLI's own version -- it self-updates
-# independently via `update-self`, so it can't assume its own build matches the OS it's on.
+# and reflects the running OS rather than this CLI's own version -- on the old OS it
+# self-updates independently via `update-self`, so it can't assume its own build matches
+# the OS it's on; on OSv3 the CLI is vendored into the image instead, and updates
+# only via `update-os` (update-self is disabled there).
 IS_NEW_OS: bool = _detect_new_os()
 
 # Environment / configuration file path (do NOT load into os.environ)
-# On the new OS, /opt/stacks/openmower/.env deliberately does NOT configure
+# On OSv3, /opt/stacks/openmower/.env deliberately does NOT configure
 # open_mower_ros (that runs via systemd/nspawn, not this compose stack) -- its own
 # header comment says so. The real per-device config lives at
 # /data/openmower/openmower.conf instead.
@@ -72,7 +74,7 @@ BOOTLOADER_BIN_NAME: str | None = get_env("XCORE_BOOTLOADER_CUSTOM_BIN_NAME")
 
 # Mower configuration file path. PARAMS_PATH fallback mirrors
 # openmower-check-config's own PARAMS_PATH="${PARAMS_PATH:-/data/openmower/params}"
-# on the new OS, so this stays in sync with the actual service if overridden.
+# on OSv3, so this stays in sync with the actual service if overridden.
 MOWER_PARAMS_FILE: Path = (
     Path(get_env("PARAMS_PATH", "/data/openmower/params")) / "mower_params.yaml"
     if IS_NEW_OS

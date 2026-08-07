@@ -91,6 +91,23 @@ openmower update-self --dry-run        # show what would be done
 ```
 The command replaces the currently running zipapp with the downloaded version atomically.
 
+Not available on the Buildroot-based OpenMower OS: there the CLI is vendored into the OS image
+and updates together with it via `update-os` instead; `update-self` is hidden/disabled on that OS.
+
+### OS update (Buildroot-based OpenMower OS)
+Installs a RAUC bundle carrying `open_mower_ros` and switches into it on reboot:
+```bash
+openmower update-os                       # latest release
+openmower update-os --tag v1.3.0          # specific release tag
+openmower update-os --from-pr 123         # latest build for a PR
+openmower update-os --from-branch main    # latest build on a branch
+openmower update-os --reboot              # also tryboot into the new slot immediately
+
+openmower update-os --from-file ./bundle.raucb  # install a local bundle and tryboot into it
+```
+`--from-file` skips the api.openmower.de lookup/download entirely and always reboots (tryboot)
+into the new slot after a successful install.
+
 ## Development
 Clone and install in editable mode:
 ```bash
