@@ -72,6 +72,11 @@ FW_BIN_NAME: str | None = get_env("OPENMOWER_FW_CUSTOM_BIN_NAME")
 BOOTLOADER_REPO: str = get_env("XCORE_BOOTLOADER_REPO", "xtech/fw-xcore-boot")
 BOOTLOADER_BIN_NAME: str | None = get_env("XCORE_BOOTLOADER_CUSTOM_BIN_NAME")
 
+# Host network interface fw-xcore-boot (run with --network=host) uses to reach the
+# xCore board. OSv3 puts the CM4's ethernet under a bridge (br0); the old OS keeps
+# the plain eth0 name.
+XCORE_NETWORK_INTERFACE: str = "br0" if IS_NEW_OS else "eth0"
+
 # Mower configuration file path. PARAMS_PATH fallback mirrors
 # openmower-check-config's own PARAMS_PATH="${PARAMS_PATH:-/data/openmower/params}"
 # on OSv3, so this stays in sync with the actual service if overridden.

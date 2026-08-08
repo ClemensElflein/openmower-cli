@@ -9,7 +9,7 @@ import typer
 import requests
 
 from openmower_cli.console import info, error, success, message
-from openmower_cli.constants import FW_BIN_NAME, get_env, XCORE_CONFIG_FILE, BOOTLOADER_BIN_NAME
+from openmower_cli.constants import FW_BIN_NAME, get_env, XCORE_CONFIG_FILE, BOOTLOADER_BIN_NAME, XCORE_NETWORK_INTERFACE
 from openmower_cli.helpers import fetch_github_release_zip, run
 from openmower_cli.constants import ESC_DEFAULT_PORT, GPS_DEFAULT_PORT, GPS_XCORE_PORT
 
@@ -108,7 +108,7 @@ def update_firmware(
             "--network=host",
             f"-v{fw_dir}:/workdir",
             "ghcr.io/xtech/fw-xcore-boot:latest",
-            "-i", "eth0", "upload", f"/workdir/{fw_name}",
+            "-i", XCORE_NETWORK_INTERFACE, "upload", f"/workdir/{fw_name}",
         ]
         try:
             run(cmd)
@@ -217,7 +217,7 @@ def update_firmware(
             "--network=host",
             f"-v{fw_dir}:/workdir",
             "ghcr.io/xtech/fw-xcore-boot:latest",
-            "-i", "eth0", "upload", f"/workdir/openmower-{firmware}.bin",
+            "-i", XCORE_NETWORK_INTERFACE, "upload", f"/workdir/openmower-{firmware}.bin",
         ]
         try:
             run(cmd)
@@ -251,7 +251,7 @@ def enable_bootloader_developer_mode(
         "--network=host",
         "ghcr.io/xtech/fw-xcore-boot:latest",
         "-i",
-        "eth0",
+        XCORE_NETWORK_INTERFACE,
         "set_dev_mode",
         "--enable" if enable else "--disable",
     ]
