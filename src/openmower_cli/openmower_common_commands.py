@@ -396,6 +396,10 @@ def update_os(
     - Download the bundle (PR/branch builds come wrapped in a GitHub Actions artifact
       zip and must be unzipped first; release bundles are the raw .raucb already)
     - Install via `rauc install`
+
+    Refuses to contact api.openmower.de (exits with an error) if
+    UPDATE_CHECK_DISABLE_FILE exists; --from-file is unaffected since it never
+    hits the API.
     """
     if not IS_NEW_OS:
         error("update-os is only available on the Buildroot-based OpenMower OS.")
@@ -415,6 +419,11 @@ def update_os(
         success(f"OS update installed from {from_file}.")
         _tryboot_reboot()
         return
+
+    if UPDATE_CHECK_DISABLE_FILE.exists():
+        error(f"Update checks are disabled ({UPDATE_CHECK_DISABLE_FILE} exists), so update-os won't contact "
+              "api.openmower.de. Remove that file to re-enable, or use --from-file to install a local bundle.")
+        raise typer.Exit(code=1)
 
     if sum(x is not None for x in (from_pr, from_branch)) > 1:
         error("--from-pr and --from-branch cannot be used together.")
