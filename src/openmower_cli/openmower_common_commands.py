@@ -32,9 +32,12 @@ def _compose_base_args() -> List[str]:
 # --- ROS primitives (OSv3 only -- no-ops on the old OS, where open_mower_ros IS
 # the compose service the _aux_* primitives below already manage) -------------------
 
-def _ros_start():
+def _ros_start() -> bool:
+    """Start the OSv3 systemd unit and report whether it actually came up.
+    No-op on the old OS, where open_mower_ros isn't a separate systemd service
+    (reports success so callers don't block the compose stack below it)."""
     if not IS_NEW_OS:
-        return
+        return True
     run(["systemctl", "start", ROS_SERVICE_UNIT])
     # Type=simple + ExecCondition=: `systemctl start` returns as soon as the unit is
     # forked -- or the job is skipped (exit 0, NOT a failure) if ExecCondition rejects
@@ -44,6 +47,9 @@ def _ros_start():
     if subprocess.run(["systemctl", "is-active", "--quiet", ROS_SERVICE_UNIT]).returncode != 0:
         warn(f"{ROS_SERVICE_UNIT} did not start:")
         subprocess.run(["/usr/bin/openmower-check-config"])
+        return False
+    success(f"{ROS_SERVICE_UNIT} started.")
+    return True
 
 
 def _ros_stop():
@@ -101,7 +107,9 @@ def pull():
 @openmower_common_app.command()
 def start():
     """Start the stack (systemd service + docker compose up -d on OSv3; docker compose up -d only on the old OS)."""
-    _ros_start()
+    if not _ros_start():
+        error(f"{ROS_SERVICE_UNIT} failed to start; not starting the docker compose stack.")
+        raise typer.Exit(code=1)
     _aux_start()
 
 
