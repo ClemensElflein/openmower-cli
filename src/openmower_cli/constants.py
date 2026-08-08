@@ -94,6 +94,12 @@ LAST_CHECK_FILE: Path = _STATE_DIR / "last_update_check.json"
 # os repo) instead of a network call on every invocation -- read by
 # warn_if_os_update_available() at CLI startup.
 OS_UPDATE_STATUS_FILE: Path = _STATE_DIR / "os_update_status.json"
+# Presence alone disables `check-os-update` (see its own docstring) -- an
+# empty file is enough, no content is read. Also referenced directly (not
+# via this constant) by openmower-check-update.service's own
+# ConditionPathExists=! in the os repo, so the unit can skip the process
+# entirely most days without needing the CLI to even start.
+UPDATE_CHECK_DISABLE_FILE: Path = Path("/data/openmower/no-update-check")
 SETTINGS_FILE: Path = _STATE_DIR / "settings.json"
 XCORE_CONFIG_FILE: Path = _STATE_DIR / "xcore.cfg"
 

@@ -19,7 +19,7 @@ from openmower_cli.helpers import run, read_settings, write_settings, read_os_up
 openmower_common_app = typer.Typer(help="OpenMower (Legacy) Commands", no_args_is_help=True)
 
 from openmower_cli.constants import DEFAULT_GH_REPO, COMPOSE_FILE, DOCKER_BIN, DEFAULT_SERVICE, STACK_NAME, ENV_PATH, \
-    MOWER_PARAMS_FILE, IS_NEW_OS
+    MOWER_PARAMS_FILE, IS_NEW_OS, UPDATE_CHECK_DISABLE_FILE
 
 ROS_SERVICE_UNIT = "openmower.service"
 
@@ -536,8 +536,14 @@ def check_os_update():
     as a failed unit over a transient network hiccup, same reasoning as
     check_for_update_if_needed's self-update check. On failure, leaves any
     previously recorded latest_version/update_available untouched.
+
+    Opt-out: skips entirely (leaves OS_UPDATE_STATUS_FILE untouched) if
+    UPDATE_CHECK_DISABLE_FILE exists. The timer unit already has its own
+    ConditionPathExists=! for the same file so it usually won't even get
+    this far, but this makes a direct `openmower check-os-update` respect
+    it too.
     """
-    if not IS_NEW_OS:
+    if not IS_NEW_OS or UPDATE_CHECK_DISABLE_FILE.exists():
         return
 
     current_version = _read_os_version()
