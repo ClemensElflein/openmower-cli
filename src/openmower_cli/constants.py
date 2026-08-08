@@ -86,14 +86,8 @@ MOWER_PARAMS_FILE: Path = (
     else Path(os.path.expanduser("~/params/mower_params.yaml"))
 )
 
-# Paths for internal state/cache files. On OSv3 the root filesystem (and $HOME under
-# it) is read-only -- only /data persists across boots -- so state lives there instead
-# of the usual ~/.config on the old OS.
-_STATE_DIR: Path = (
-    Path("/data/openmower/cli")
-    if IS_NEW_OS
-    else Path(os.path.expanduser("~/.config/openmower-cli"))
-)
+# Paths for internal state/cache files.
+_STATE_DIR: Path = Path(os.path.expanduser("~/.config/openmower-cli"))
 LAST_CHECK_FILE: Path = _STATE_DIR / "last_update_check.json"
 # Written daily by `openmower check-os-update` (openmower-check-update.timer,
 # os repo) instead of a network call on every invocation -- read by
