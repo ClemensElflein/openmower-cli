@@ -9,7 +9,7 @@ import requests
 import typer
 
 from openmower_cli.console import error, warn, info
-from openmower_cli.constants import LAST_CHECK_FILE, DEFAULT_GH_REPO, SETTINGS_FILE, IS_NEW_OS
+from openmower_cli.constants import LAST_CHECK_FILE, DEFAULT_GH_REPO, SETTINGS_FILE, IS_NEW_OS, OS_UPDATE_STATUS_FILE
 
 
 def run(cmd: List[str]) -> None:
@@ -100,6 +100,34 @@ def write_settings(data: dict) -> None:
             json.dump(data, f)
     except Exception as e:
         warn(f"Failed to save settings to {SETTINGS_FILE}: {e}")
+
+
+def read_os_update_status() -> dict:
+    try:
+        if OS_UPDATE_STATUS_FILE.exists():
+            with open(OS_UPDATE_STATUS_FILE, "r") as f:
+                return json.load(f) or {}
+    except Exception:
+        pass
+    return {}
+
+
+def write_os_update_status(data: dict) -> None:
+    try:
+        OS_UPDATE_STATUS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(OS_UPDATE_STATUS_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+
+def warn_if_os_update_available() -> None:
+    """Surface openmower-check-update.timer's last result (os repo) at CLI
+    startup -- reads the flag file it writes, no network call of our own."""
+    status = read_os_update_status()
+    if status.get("update_available"):
+        version = status.get("latest_version", "?")
+        warn(f"OpenMower OS update {version} is available. Run 'openmower update-os' to install.")
 
 
 def check_for_update_if_needed(current_version: str, repo: str = DEFAULT_GH_REPO, max_age_days: int = 7) -> None:

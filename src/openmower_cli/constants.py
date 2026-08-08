@@ -90,6 +90,10 @@ _STATE_DIR: Path = (
     else Path(os.path.expanduser("~/.config/openmower-cli"))
 )
 LAST_CHECK_FILE: Path = _STATE_DIR / "last_update_check.json"
+# Written daily by `openmower check-os-update` (openmower-check-update.timer,
+# os repo) instead of a network call on every invocation -- read by
+# warn_if_os_update_available() at CLI startup.
+OS_UPDATE_STATUS_FILE: Path = _STATE_DIR / "os_update_status.json"
 SETTINGS_FILE: Path = _STATE_DIR / "settings.json"
 XCORE_CONFIG_FILE: Path = _STATE_DIR / "xcore.cfg"
 

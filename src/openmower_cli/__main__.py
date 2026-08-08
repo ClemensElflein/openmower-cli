@@ -4,7 +4,7 @@ import openmower_cli.openmower_commands
 import openmower_cli.openmower_legacy_commands
 import openmower_cli.openmower_common_commands
 from openmower_cli.console import warn
-from openmower_cli.constants import HARDWARE_PLATFORM
+from openmower_cli.constants import HARDWARE_PLATFORM, IS_NEW_OS
 from openmower_cli import __version__
 
 def create_app():
@@ -34,6 +34,16 @@ def create_app():
     except Exception:
         # Never block startup for update checks
         pass
+
+    # Surface openmower-check-update.timer's daily OS-update result, if any
+    # (os repo; only relevant/present on the Buildroot-based OS). Reads a
+    # local flag file, no network call here.
+    if IS_NEW_OS:
+        try:
+            from openmower_cli.helpers import warn_if_os_update_available
+            warn_if_os_update_available()
+        except Exception:
+            pass
 
     if HARDWARE_PLATFORM is None:
         warn("HARDWARE_PLATFORM environment variable not set. Using legacy commands.")

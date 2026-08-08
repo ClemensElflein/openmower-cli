@@ -1,10 +1,12 @@
 import hashlib
+import json
 import os
 import stat
 import subprocess
 import sys
 import tempfile
 import zipfile
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
@@ -12,7 +14,7 @@ import requests
 import typer
 
 from openmower_cli.console import info, warn, error, success, message
-from openmower_cli.helpers import run, read_settings, write_settings
+from openmower_cli.helpers import run, read_settings, write_settings, read_os_update_status, write_os_update_status
 
 openmower_common_app = typer.Typer(help="OpenMower (Legacy) Commands", no_args_is_help=True)
 
@@ -515,6 +517,46 @@ def update_os(
             td.cleanup()
         except Exception:
             pass
+
+
+@openmower_common_app.command("check-os-update", hidden=True)
+def check_os_update():
+    """Check api.openmower.de for a newer OS release and record the result to
+    OS_UPDATE_STATUS_FILE for `warn_if_os_update_available()` (CLI startup) to
+    pick up -- no download, no install, no output on a normal run. Meant to be
+    run once a day by openmower-check-update.timer (os repo), not by hand.
+
+    Compares by string equality against the latest published release tag, not
+    a semver/newer-than check: current-version can be a real release tag or a
+    dev-build timestamp (see os repo's post-build.sh), and the two aren't
+    comparable on the same scale. Not being on the exact latest tag is enough
+    to flag "update available" either way.
+
+    Never raises: a systemd timer running this unattended shouldn't show up
+    as a failed unit over a transient network hiccup, same reasoning as
+    check_for_update_if_needed's self-update check. On failure, leaves any
+    previously recorded latest_version/update_available untouched.
+    """
+    if not IS_NEW_OS:
+        return
+
+    current_version = _read_os_version()
+    status = {"current_version": current_version, "checked_at": datetime.now().isoformat()}
+    previous = read_os_update_status()
+    status["latest_version"] = previous.get("latest_version")
+    status["update_available"] = previous.get("update_available", False)
+
+    try:
+        request_body = {"machine-id": _read_machine_id(), "current-version": current_version}
+        r = requests.post("https://api.openmower.de/v1/os-update", json=request_body, timeout=30)
+        if r.status_code == 200:
+            latest_version = r.json().get("version")
+            status["latest_version"] = latest_version
+            status["update_available"] = bool(latest_version) and latest_version != current_version
+    except Exception:
+        pass
+
+    write_os_update_status(status)
 
 
 @openmower_common_app.command("update-self", hidden=IS_NEW_OS)
