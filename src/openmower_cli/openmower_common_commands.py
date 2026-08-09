@@ -388,6 +388,11 @@ def update_os(
         dir_okay=False,
         readable=True,
     ),
+    from_url: Optional[str] = typer.Option(
+        None,
+        "--from-url",
+        help="Download a RAUC bundle (.raucb) from an arbitrary URL and install it, bypassing api.openmower.de.",
+    ),
     reboot: bool = typer.Option(
         False,
         "--reboot",
@@ -395,23 +400,28 @@ def update_os(
     ),
 ):
     """Install an OS update (RAUC bundle carrying open_mower_ros) via api.openmower.de,
-    or a local bundle via --from-file.
+    a local bundle via --from-file, or an arbitrary URL via --from-url.
 
     Steps:
     - Ask api.openmower.de for the bundle location: a PR's latest build (--from-pr),
       a branch's latest build (--from-branch), or a tagged release (--tag, defaults
-      to the latest release) -- or skip the lookup entirely with --from-file
+      to the latest release) -- or skip the lookup entirely with --from-file/--from-url
     - Download the bundle (PR/branch builds come wrapped in a GitHub Actions artifact
-      zip and must be unzipped first; release bundles are the raw .raucb already)
+      zip and must be unzipped first; release bundles and --from-url downloads are
+      the raw .raucb already)
     - Install via `rauc install`
 
     Refuses to contact api.openmower.de (exits with an error) if
-    UPDATE_CHECK_DISABLE_FILE exists; --from-file is unaffected since it never
-    hits the API.
+    UPDATE_CHECK_DISABLE_FILE exists; --from-file/--from-url are unaffected since
+    they never hit the API.
     """
     if not IS_NEW_OS:
         error("update-os is only available on the Buildroot-based OpenMower OS.")
         raise typer.Exit(code=1)
+
+    if from_file is not None and from_url is not None:
+        error("--from-file and --from-url cannot be used together.")
+        raise typer.Exit(code=2)
 
     if from_file is not None:
         if any(x is not None for x in (from_pr, from_branch, tag)):
@@ -426,6 +436,50 @@ def update_os(
             raise
         success(f"OS update installed from {from_file}.")
         _tryboot_reboot()
+        return
+
+    if from_url is not None:
+        if any(x is not None for x in (from_pr, from_branch, tag)):
+            error("--from-url cannot be combined with --from-pr/--from-branch/--tag.")
+            raise typer.Exit(code=2)
+
+        info(f"Downloading bundle from {from_url} ...")
+        td = tempfile.TemporaryDirectory()
+        try:
+            tmpdir = Path(td.name)
+            bundle_path = tmpdir / "bundle.raucb"
+            try:
+                with requests.get(from_url, stream=True, timeout=600) as resp:
+                    if resp.status_code != 200:
+                        error(f"HTTP Error downloading bundle: {resp.status_code}")
+                        raise typer.Exit(code=1)
+                    with open(bundle_path, "wb") as f:
+                        for chunk in resp.iter_content(chunk_size=1024 * 256):
+                            if chunk:
+                                f.write(chunk)
+            except typer.Exit:
+                raise
+            except Exception as e:
+                error(f"Failed to download bundle: {e}")
+                raise typer.Exit(code=1)
+
+            message(f"Installing bundle: {bundle_path} ...")
+            try:
+                run(["rauc", "install", str(bundle_path)])
+            except typer.Exit:
+                error("rauc install failed.")
+                raise
+            success(f"OS update installed from {from_url}.")
+
+            if reboot:
+                _tryboot_reboot()
+            else:
+                info("Reboot to switch into the new slot: `systemctl reboot` (or pass --reboot next time).")
+        finally:
+            try:
+                td.cleanup()
+            except OSError:
+                pass
         return
 
     if UPDATE_CHECK_DISABLE_FILE.exists():
