@@ -19,7 +19,7 @@ from openmower_cli.helpers import run, read_settings, write_settings, read_os_up
 openmower_common_app = typer.Typer(help="OpenMower (Legacy) Commands", no_args_is_help=True)
 
 from openmower_cli.constants import DEFAULT_GH_REPO, COMPOSE_FILE, DOCKER_BIN, DEFAULT_SERVICE, STACK_NAME, ENV_PATH, \
-    MOWER_PARAMS_FILE, IS_NEW_OS, UPDATE_CHECK_DISABLE_FILE
+    MOWER_PARAMS_FILE, IS_NEW_OS, UPDATE_CHECK_DISABLE_FILE, get_env
 
 ROS_SERVICE_UNIT = "openmower.service"
 
@@ -362,6 +362,17 @@ def _tryboot_reboot() -> None:
     run(["systemctl", "reboot"])
 
 
+def _version_env_branch() -> Optional[str]:
+    """Map the VERSION env var (also used on the old OS as the open_mower_ros
+    docker tag) to a branch name for OS-update lookups: 'edge' -> 'main', any
+    other non-'latest' value is used as-is (a branch name). None if VERSION is
+    unset or 'latest', meaning "use the latest release" (no override)."""
+    version = get_env("VERSION")
+    if not version or version == "latest":
+        return None
+    return "main" if version == "edge" else version
+
+
 @openmower_common_app.command("update-os")
 def update_os(
     from_pr: Optional[int] = typer.Option(
@@ -494,6 +505,13 @@ def update_os(
         error("--tag cannot be combined with --from-pr/--from-branch.")
         raise typer.Exit(code=2)
 
+    if from_pr is None and from_branch is None and tag is None:
+        version_branch = _version_env_branch()
+        if version_branch is not None:
+            from_branch = version_branch
+            info(f"VERSION is set to '{get_env('VERSION')}' (not 'latest') — checking branch "
+                 f"'{from_branch}' instead of the latest release.")
+
     if from_pr is not None:
         desc = f"PR #{from_pr}"
     elif from_branch is not None:
@@ -603,6 +621,10 @@ def check_os_update():
     comparable on the same scale. Not being on the exact latest tag is enough
     to flag "update available" either way.
 
+    Respects VERSION (see _version_env_branch()): if set to something other
+    than 'latest', checks against that branch's latest build instead of the
+    latest release, same as `update-os` does.
+
     Never raises: a systemd timer running this unattended shouldn't show up
     as a failed unit over a transient network hiccup, same reasoning as
     check_for_update_if_needed's self-update check. On failure, leaves any
@@ -625,6 +647,9 @@ def check_os_update():
 
     try:
         request_body = {"machine-id": _read_machine_id(), "current-version": current_version}
+        version_branch = _version_env_branch()
+        if version_branch is not None:
+            request_body["branch"] = version_branch
         r = requests.post("https://api.openmower.de/v1/os-update", json=request_body, timeout=30)
         if r.status_code == 200:
             latest_version = r.json().get("version")

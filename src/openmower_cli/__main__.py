@@ -81,7 +81,14 @@ def _print_version_and_exit():
 app = create_app()
 
 def main() -> None:
-    app()
+    # Keep --install-completion/--show-completion working, but drop them from
+    # --help -- shell completion setup isn't something a normal user needs to see.
+    import typer.main as typer_main
+    command = typer_main.get_command(app)
+    for param in command.params:
+        if param.name in ("install_completion", "show_completion"):
+            param.hidden = True
+    command()
 
 if __name__ == "__main__":
     main()

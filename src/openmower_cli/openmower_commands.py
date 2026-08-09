@@ -234,7 +234,7 @@ def update_firmware(
         except Exception:
             pass
 
-@openmower_app.command("enable-bootloader-developer-mode")
+@openmower_app.command("enable-bootloader-developer-mode", hidden=True)
 def enable_bootloader_developer_mode(
     enable: bool = typer.Argument(..., help="Enable (true) or disable (false) bootloader developer mode."),
 ):
