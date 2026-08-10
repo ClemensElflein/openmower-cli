@@ -12,6 +12,14 @@ from typing import List, Optional
 
 import requests
 import typer
+from rich.progress import (
+    BarColumn,
+    DownloadColumn,
+    Progress,
+    TextColumn,
+    TimeRemainingColumn,
+    TransferSpeedColumn,
+)
 
 from openmower_cli.console import info, warn, error, success, message
 from openmower_cli.helpers import run, read_settings, write_settings, read_os_update_status, write_os_update_status
@@ -22,6 +30,18 @@ from openmower_cli.constants import DEFAULT_GH_REPO, COMPOSE_FILE, DOCKER_BIN, D
     MOWER_PARAMS_FILE, IS_NEW_OS, UPDATE_CHECK_DISABLE_FILE, get_env
 
 ROS_SERVICE_UNIT = "openmower.service"
+
+def _update_tmp_base() -> Optional[str]:
+    """Staging dir for update-os downloads/extraction. /data is real disk;
+    the default tempfile location (/tmp) is a small RAM-backed tmpfs on
+    OSv3 and can't hold a downloaded bundle plus its unpacked copy at once.
+    Falls back to the default temp dir if /data/openmower isn't writable."""
+    base = Path("/data/openmower/tmp")
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+        return str(base)
+    except OSError:
+        return None
 
 
 def _compose_base_args() -> List[str]:
@@ -373,6 +393,34 @@ def _version_env_branch() -> Optional[str]:
     return "main" if version == "edge" else version
 
 
+def _download_with_progress(url: str, dest_path: Path, timeout: int = 600) -> None:
+    """Download url to dest_path, showing a progress bar. Exits via typer.Exit(1) on failure."""
+    try:
+        with requests.get(url, stream=True, timeout=timeout) as resp:
+            if resp.status_code != 200:
+                error(f"HTTP Error downloading bundle: {resp.status_code}")
+                raise typer.Exit(code=1)
+            total = int(resp.headers.get("content-length") or 0) or None
+            with Progress(
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                DownloadColumn(),
+                TransferSpeedColumn(),
+                TimeRemainingColumn(),
+            ) as progress:
+                task = progress.add_task("Downloading", total=total)
+                with open(dest_path, "wb") as f:
+                    for chunk in resp.iter_content(chunk_size=1024 * 256):
+                        if chunk:
+                            f.write(chunk)
+                            progress.update(task, advance=len(chunk))
+    except typer.Exit:
+        raise
+    except Exception as e:
+        error(f"Failed to download bundle: {e}")
+        raise typer.Exit(code=1)
+
+
 @openmower_common_app.command("update-os")
 def update_os(
     from_pr: Optional[int] = typer.Option(
@@ -455,24 +503,11 @@ def update_os(
             raise typer.Exit(code=2)
 
         info(f"Downloading bundle from {from_url} ...")
-        td = tempfile.TemporaryDirectory()
+        td = tempfile.TemporaryDirectory(dir=_update_tmp_base())
         try:
             tmpdir = Path(td.name)
             bundle_path = tmpdir / "bundle.raucb"
-            try:
-                with requests.get(from_url, stream=True, timeout=600) as resp:
-                    if resp.status_code != 200:
-                        error(f"HTTP Error downloading bundle: {resp.status_code}")
-                        raise typer.Exit(code=1)
-                    with open(bundle_path, "wb") as f:
-                        for chunk in resp.iter_content(chunk_size=1024 * 256):
-                            if chunk:
-                                f.write(chunk)
-            except typer.Exit:
-                raise
-            except Exception as e:
-                error(f"Failed to download bundle: {e}")
-                raise typer.Exit(code=1)
+            _download_with_progress(from_url, bundle_path)
 
             message(f"Installing bundle: {bundle_path} ...")
             try:
@@ -551,24 +586,11 @@ def update_os(
         raise typer.Exit(code=1)
 
     info(f"Found version {version}. Downloading ...")
-    td = tempfile.TemporaryDirectory()
+    td = tempfile.TemporaryDirectory(dir=_update_tmp_base())
     try:
         tmpdir = Path(td.name)
         dl_path = tmpdir / "bundle.download"
-        try:
-            with requests.get(download_url, stream=True, timeout=600) as resp:
-                if resp.status_code != 200:
-                    error(f"HTTP Error downloading bundle: {resp.status_code}")
-                    raise typer.Exit(code=1)
-                with open(dl_path, "wb") as f:
-                    for chunk in resp.iter_content(chunk_size=1024 * 256):
-                        if chunk:
-                            f.write(chunk)
-        except typer.Exit:
-            raise
-        except Exception as e:
-            error(f"Failed to download bundle: {e}")
-            raise typer.Exit(code=1)
+        _download_with_progress(download_url, dl_path)
 
         if proxied:
             # PR/branch builds: a GitHub Actions artifact, always a zip wrapper
