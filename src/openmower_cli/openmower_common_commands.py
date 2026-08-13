@@ -439,6 +439,11 @@ def update_os(
         "-t",
         help="Release tag to install (e.g. 'v1.3.0'). Defaults to the latest release.",
     ),
+    manual: bool = typer.Option(
+        False,
+        "--manual",
+        help="Install the RAUC bundle from the latest successful manually-triggered (workflow_dispatch) build.",
+    ),
     from_file: Optional[Path] = typer.Option(
         None,
         "--from-file",
@@ -463,8 +468,9 @@ def update_os(
 
     Steps:
     - Ask api.openmower.de for the bundle location: a PR's latest build (--from-pr),
-      a branch's latest build (--from-branch), or a tagged release (--tag, defaults
-      to the latest release) -- or skip the lookup entirely with --from-file/--from-url
+      a branch's latest build (--from-branch), the latest manually-triggered build
+      (--manual), or a tagged release (--tag, defaults to the latest release) --
+      or skip the lookup entirely with --from-file/--from-url
     - Download the bundle (PR/branch builds come wrapped in a GitHub Actions artifact
       zip and must be unzipped first; release bundles and --from-url downloads are
       the raw .raucb already)
@@ -483,8 +489,8 @@ def update_os(
         raise typer.Exit(code=2)
 
     if from_file is not None:
-        if any(x is not None for x in (from_pr, from_branch, tag)):
-            error("--from-file cannot be combined with --from-pr/--from-branch/--tag.")
+        if any(x is not None for x in (from_pr, from_branch, tag)) or manual:
+            error("--from-file cannot be combined with --from-pr/--from-branch/--tag/--manual.")
             raise typer.Exit(code=2)
 
         message(f"Installing bundle: {from_file} ...")
@@ -498,8 +504,8 @@ def update_os(
         return
 
     if from_url is not None:
-        if any(x is not None for x in (from_pr, from_branch, tag)):
-            error("--from-url cannot be combined with --from-pr/--from-branch/--tag.")
+        if any(x is not None for x in (from_pr, from_branch, tag)) or manual:
+            error("--from-url cannot be combined with --from-pr/--from-branch/--tag/--manual.")
             raise typer.Exit(code=2)
 
         info(f"Downloading bundle from {from_url} ...")
@@ -539,8 +545,11 @@ def update_os(
     if tag is not None and (from_pr is not None or from_branch is not None):
         error("--tag cannot be combined with --from-pr/--from-branch.")
         raise typer.Exit(code=2)
+    if manual and (from_pr is not None or from_branch is not None or tag is not None):
+        error("--manual cannot be combined with --from-pr/--from-branch/--tag.")
+        raise typer.Exit(code=2)
 
-    if from_pr is None and from_branch is None and tag is None:
+    if from_pr is None and from_branch is None and tag is None and not manual:
         version_branch = _version_env_branch()
         if version_branch is not None:
             from_branch = version_branch
@@ -551,6 +560,8 @@ def update_os(
         desc = f"PR #{from_pr}"
     elif from_branch is not None:
         desc = f"branch '{from_branch}'"
+    elif manual:
+        desc = "the latest manual build"
     else:
         desc = f"release {tag or 'latest'}"
 
@@ -564,6 +575,8 @@ def update_os(
         request_body["branch"] = from_branch
     elif tag is not None:
         request_body["tag"] = tag
+    elif manual:
+        request_body["manual"] = True
 
     info(f"Looking up OS update for {desc} ...")
     try:

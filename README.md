@@ -101,6 +101,7 @@ openmower update-os                       # latest release
 openmower update-os --tag v1.3.0          # specific release tag
 openmower update-os --from-pr 123         # latest build for a PR
 openmower update-os --from-branch main    # latest build on a branch
+openmower update-os --manual              # latest manually-triggered (workflow_dispatch) build
 openmower update-os --reboot              # also tryboot into the new slot immediately
 
 openmower update-os --from-file ./bundle.raucb  # install a local bundle and tryboot into it
