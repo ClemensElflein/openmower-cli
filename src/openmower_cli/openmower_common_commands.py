@@ -594,6 +594,9 @@ def update_os(
     version = payload.get("version")
     download_url = payload.get("download-url")
     proxied = payload.get("proxied")
+    if payload.get("up-to-date"):
+        success(f"Already up to date (version {version}).")
+        return
     if not download_url:
         error("Update lookup response did not include a download-url.")
         raise typer.Exit(code=1)
