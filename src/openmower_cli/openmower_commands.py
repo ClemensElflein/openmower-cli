@@ -8,7 +8,7 @@ from typing import Optional
 import typer
 import requests
 
-from openmower_cli.console import info, error, success, message
+from openmower_cli.console import info, error, success, message, warn
 from openmower_cli.constants import FW_BIN_NAME, get_env, XCORE_CONFIG_FILE, BOOTLOADER_BIN_NAME, XCORE_NETWORK_INTERFACE
 from openmower_cli.helpers import fetch_github_release_zip, run
 from openmower_cli.constants import ESC_DEFAULT_PORT, GPS_DEFAULT_PORT, GPS_XCORE_PORT
@@ -120,9 +120,8 @@ def update_firmware(
         return
 
     firmware = get_env("FIRMWARE")
-    if not firmware:
-        error("Environment variable FIRMWARE is not set. Please set FIRMWARE to your firmware identifier and retry.")
-        raise typer.Exit(code=2)
+    if firmware:
+        warn("ACTION REQUIRED: OpenMower now is shipped as single firmware binary. You need to set the firmware in 'openmower configure ros': '/ll/board' and remove the FIRMWARE environment variable in 'openmower configure env'.")
 
     if from_pr is not None and (repo is not None or tag is not None):
         error("--from-pr cannot be combined with --repo/--tag.")
@@ -193,10 +192,17 @@ def update_firmware(
         except Exception as e:
             error(f"Failed to extract firmware archive: {e}")
             raise typer.Exit(code=1)
-        fw_path = tmpdir / f"openmower-{firmware}.bin"
+
+        # Use custom firmware binary
         if FW_BIN_NAME is not None:
             info(f"Using custom firmware binary file name: {FW_BIN_NAME}.")
             fw_path = tmpdir / FW_BIN_NAME
+        else:
+            # No custom firmware path, try the new unified firmware path
+            fw_path = tmpdir / "openmower-firmware.bin"
+            if firmware is not None and (not fw_path.exists() or not fw_path.is_file()):
+                # Fallback to the old format
+                fw_path = tmpdir / f"openmower-{firmware}.bin"
 
         if not fw_path.exists() or not fw_path.is_file():
             error(f"Firmware file not found at expected path: {fw_path}. Please ensure the release contains openmower-{firmware}.bin. Your FIRMWARE environment variable may be set incorrectly.")
