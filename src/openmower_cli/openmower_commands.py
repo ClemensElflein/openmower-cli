@@ -223,7 +223,7 @@ def update_firmware(
             "--network=host",
             f"-v{fw_dir}:/workdir",
             "ghcr.io/xtech/fw-xcore-boot:latest",
-            "-i", XCORE_NETWORK_INTERFACE, "upload", f"/workdir/openmower-{firmware}.bin",
+            "-i", XCORE_NETWORK_INTERFACE, "upload", f"/workdir/{fw_path.name}",
         ]
         try:
             run(cmd)
